@@ -175,8 +175,8 @@ Every ad in this system is a **full-length VSL** (15–30 minutes) uploaded dire
 ```
 
 **Two creative formats** (detect from ad_name):
-- **TS-only** — ad_name contains "TS". Skips the connector, goes straight from thumbstopper into VSL.
-- **Ad body** — no "TS" in name. Has a 30–60 second connector (new creative angle) between the hook and the VSL.
+- **TS-only** — ad_name contains a TS token at a word boundary: `_TS_`, `-TS-`, `_TS-`, `-TS_`, or `_TS` at end of name. Do NOT match "TS" as a substring inside other words (e.g., "CesarRanks_Results" should NOT match). Use regex: `[_-]TS([_-]|$)` (case-insensitive).
+- **Ad body** — no TS token found. Has a 30–60 second connector (new creative angle) between the hook and the VSL.
 
 **What Rill retention checkpoints measure** (for a ~20 min VSL):
 
@@ -207,10 +207,11 @@ Read the retention curve as a **segment-by-segment dropoff map.** Each drop tell
 | **Scaling signal** | Nowhere — all green | All metrics green + upward daily trend | Working — needs fuel | Increase budget |
 
 **How to read the retention curve:**
-1. Calculate the **drop ratio** between each consecutive checkpoint: `imp-3sec → three-TP → 25-watched → 50-watched → 75-watched → 100-watched`
-2. The **biggest percentage drop** between two consecutive checkpoints = the segment where viewers are leaving
-3. Name that segment using the creative structure table above
-4. The fix targets THAT specific segment — not the whole creative
+1. Evaluate `imp-3sec` as a standalone hook rate (different denominator from the rest — see Step 5b warning)
+2. Calculate the **drop ratio** between each consecutive video_view-denominated checkpoint: `three-TP → 25-watched → 50-watched → 75-watched → 100-watched`
+3. The **biggest percentage drop** between two consecutive checkpoints = the segment where viewers are leaving
+4. Name that segment using the creative structure table above
+5. The fix targets THAT specific segment — not the whole creative
 
 **Nature's Blend CM account note:** A connector/early-VSL dropout in this account traces most commonly to a **cadence break** — any section where Cesar stops talking and shifts to editorial footage (e.g., the 0:12–0:18 fresh food pouches section in STOR-3169). Always check if a retention drop maps to a known editorial section before diagnosing. The fix is usually cutting/shortening the editorial and keeping Cesar on screen.
 
@@ -319,30 +320,40 @@ For each variant (each `ad_name` row from Step 2):
 This is the most important step. Read the retention curve as a **segment-by-segment dropoff map**, not just aggregate numbers.
 
 **5a. Detect creative format from ad_name:**
-- If ad_name contains "TS" (case-insensitive) → **TS-only format** (thumbstopper straight to VSL, no connector)
+- If ad_name matches TS at a word boundary (`[_-]TS([_-]|$)`, case-insensitive) → **TS-only format** (thumbstopper straight to VSL, no connector)
 - Otherwise → **Ad body format** (has 30-60s connector between hook and VSL)
+- Do NOT match "TS" as a substring inside other words (e.g., "Results", "CesarRanks_TS2" DOES match but "CesarRanks_Results" does NOT).
 - Note the format in the diagnosis.
 
 **5b. Build the retention waterfall (Facebook):**
 
-Calculate the drop ratio between each consecutive checkpoint:
+**⚠️ DENOMINATOR WARNING:** `imp-3sec` and `three-TP` through `100-watched` use DIFFERENT denominators and CANNOT be compared as a ratio.
+- `imp-3sec` = video_view / impressions (denominator: **impressions**)
+- `three-TP` through `100-watched` = thruplay or % watched / video_view (denominator: **video_view**)
+
+**Therefore:** Report `imp-3sec` as a **standalone hook rate** — do NOT compute `three-TP / imp-3sec`. Step-to-step ratios only start from `three-TP` onward.
 
 ```
-imp-3sec  →  three-TP  →  25-watched  →  50-watched  →  75-watched  →  100-watched
-   TS         Connector     Early VSL      Mid VSL       Product        VSL Close
-              / VSL entry                                Reveal
+imp-3sec (standalone — hook rate, % of impressions that watched 3s)
+   ↓ [NO RATIO — different denominators]
+three-TP  →  25-watched  →  50-watched  →  75-watched  →  100-watched
+Connector     Early VSL      Mid VSL       Product        VSL Close
+/ VSL entry                                Reveal
 ```
 
-For each transition, compute: `next_checkpoint / previous_checkpoint`. Example:
-- `three-TP / imp-3sec` = connector retention
+Compute step-to-step ratios for the **video_view-denominated** checkpoints only:
 - `25-watched / three-TP` = VSL entry retention (are they committing to the long video?)
 - `50-watched / 25-watched` = mid-VSL retention (is the story holding?)
 - `75-watched / 50-watched` = pre-pitch retention (do they make it to product mention?)
 - `100-watched / 75-watched` = close retention (do they finish after hearing the pitch?)
 
+Separately evaluate `imp-3sec` against benchmark (Green ≥ 15%, Yellow 10-15%, Red < 10%). A low imp-3sec is a TS problem regardless of what happens downstream.
+
 **5c. Identify the biggest drop:**
 
-The transition with the **lowest ratio** (biggest percentage loss) is where the creative is failing. Name the specific segment using the Creative Structure table.
+1. First check `imp-3sec` — if below 10%, flag as a **TS problem** before looking downstream.
+2. Then among the video_view-denominated ratios (`25/TP`, `50/25`, `75/50`, `100/75`), find the transition with the **lowest ratio** (biggest percentage loss). That's where the creative is failing.
+3. Name the specific segment using the Creative Structure table.
 
 **5d. Map to diagnosis pattern:**
 
@@ -368,6 +379,14 @@ Same logic — find the biggest drop, name the segment.
 **5g. Final check — NCR + Continuity (FB only):**
 - **NCR** — Are conversions coming from new customers? Low NCR (<45%) = audience problem.
 - **Continuity** — Are customers opting into subscriptions? Low continuity (<25%) = offer/funnel issue downstream.
+
+**5h. Systemic pattern detection (multi-variant only):**
+
+When analyzing multiple variants of the same ticket or multiple ads in multi-ad mode:
+1. For each variant, identify the biggest-drop segment (from 5c).
+2. If **≥ 70% of variants** show the same biggest-drop segment (e.g., all drop at TP→25%), flag it as a **systemic issue**: `"⚠️ Systemic pattern: [N] of [total] variants show [segment] dropout — this is a structural issue with the [VSL/connector/TS], not variant-specific."`
+3. A systemic issue means variant swaps won't fix it — the underlying creative segment needs rework.
+4. If no systemic pattern exists (drops are scattered across different segments), note: "No systemic pattern — variant-specific issues."
 
 Output 2–3 sentences explaining:
 1. What the retention curve shape tells you (where the biggest drop is)
@@ -399,6 +418,17 @@ Note: The split test view uses `visit_date` as its time dimension, and `initial_
 If only one variant exists, skip this section entirely.
 
 ### Step 7 — Deliver Verdict & Output Report
+
+**Multi-ad summary mode:** If the query returned **more than 10 ad variants**, do NOT produce individual full reports for each. Instead:
+1. Produce a **ranked summary table** sorted by ROI (or spend if ROI is null): top 10 performers, bottom 5 performers, with columns: ad_name | spend | ROI | CAC | CVR | verdict.
+2. Below the table, add an **aggregate patterns** section: most common funnel shape issue across all variants, account-level blended metrics, and any systemic patterns (see Step 5h).
+3. Then produce a **full individual report** only for the top 3 performers and worst 2 performers. This keeps output manageable.
+4. If the user wants a full report on a specific ad from the summary, they can ask: "Analyze [ad_name] on the [account]"
+
+**Null CAC/CVR handling in ranking:** Ads with zero conversions will have null CAC and null CVR. When ranking:
+- Sort null-CAC/null-CVR ads to the **bottom** of the table.
+- Display "no conversions" instead of blank or zero.
+- These ads should receive ⏸️ PAUSE or 🔴 KILL verdicts — never 🟢 SCALE.
 
 Assign one of four verdicts **per variant**. Be decisive — the team needs a call, not a list of possibilities.
 
