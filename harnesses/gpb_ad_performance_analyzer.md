@@ -162,18 +162,57 @@ Use same ROI/CAC targets as Nature's Blend until brand-specific benchmarks are e
 
 Do **not** score against hard benchmarks yet. Report trajectory only — show the numbers and trend direction without Green/Yellow/Red flags.
 
+### Creative Structure — How Ads Work
+
+Every ad in this system is a **full-length VSL** (15–30 minutes) uploaded directly to Facebook/YouTube. Rill's retention metrics measure viewers watching through the actual VSL, not a short clip. The structure:
+
+```
+┌─────────────┐   ┌──────────────────────┐   ┌──────────────────────────────────┐
+│  0–3 sec    │   │  3–50 sec            │   │  50 sec → 15-30 min             │
+│  THUMBSTOPPER│──▸│  CONNECTOR (ad body) │──▸│  VSL (primary conversion driver) │
+│  (TS)       │   │  (new creative angle)│   │  Product mention at ~15+ min    │
+└─────────────┘   └──────────────────────┘   └──────────────────────────────────┘
+```
+
+**Two creative formats** (detect from ad_name):
+- **TS-only** — ad_name contains "TS". Skips the connector, goes straight from thumbstopper into VSL.
+- **Ad body** — no "TS" in name. Has a 30–60 second connector (new creative angle) between the hook and the VSL.
+
+**What Rill retention checkpoints measure** (for a ~20 min VSL):
+
+| Rill Metric | Approx Timestamp | Creative Segment | What It Tells You |
+|---|---|---|---|
+| `imp-3sec` | 0–3 sec | **Thumbstopper** | Is the hook stopping thumbs? |
+| `three-TP` | 3sec → ~15sec | **Early connector / VSL entry** | Does the viewer commit past the hook? |
+| `25-watched` | ~5 min mark | **Early VSL** | Story setup / problem-agitation holding? |
+| `50-watched` | ~10 min mark | **Mid VSL** | Building the case — is viewer still engaged? |
+| `75-watched` | ~15 min mark | **Product reveal zone** | Viewer reaches product mention — critical gate |
+| `100-watched` | ~20 min mark | **VSL close / CTA** | Full VSL completion — strongest buy signal |
+
+**Key insight:** The product is NOT mentioned until ~15+ minutes in (~75% mark). Any viewer who reaches 75-watched has heard the pitch. If they don't convert after that, it's a pitch/offer/price issue — not a creative issue.
+
 ### Funnel Diagnosis Patterns
 
-| Pattern | Signals | Root Cause | Recommended Fix |
-|---|---|---|---|
-| **Hook problem** | Low imp→3sec (<15%), spend inefficiency | Thumb stopper not stopping | New hook / visual |
-| **Hold problem** | Good 3sec, drop at thruplay (<30% 3sec→TP) | Ad body loses attention, pacing break | Cut the drag section, tighten cadence |
-| **VSL problem** | Good thruplay, low CVR (<1%) | Hook delivered, VSL not converting | VSL audit, not creative |
-| **Audience problem** | Good CVR, low NCR (<45%) | Converting existing customers, not new | Audience targeting or exclusion issue |
-| **Fatigue** | Good early metrics, declining ROI/CVR trend | Creative exhausted | Rotate new variants |
-| **Scaling signal** | All metrics green + upward trend | Working — needs fuel | Increase budget |
+Read the retention curve as a **segment-by-segment dropoff map.** Each drop tells you which creative segment to fix.
 
-**Nature's Blend CM account note:** A hold problem in this account traces most commonly to a **cadence break** — any section where Cesar stops talking and shifts to editorial (e.g., the 0:12–0:18 fresh food pouches section in STOR-3169). Always check if a retention drop maps to a known editorial section before diagnosing as a hook issue.
+| Pattern | Where the Drop Is | Signals | Root Cause | Fix |
+|---|---|---|---|---|
+| **TS problem** | imp→3sec | Low imp→3sec (<15%) | Thumbstopper not stopping | New hook visual, first-frame change |
+| **Connector problem** | 3sec→TP or 3sec→25% | Good 3sec, big drop before 25-watched | Ad body / connector loses them before VSL kicks in | Tighten connector, cut to VSL faster, or test TS-only format |
+| **Early VSL dropout** | 25%→50% | Good entry but 50-watched drops sharply from 25-watched | Story/problem-agitation section loses momentum | Pacing issue — tighten the problem section, add more Cesar talking (not editorial) |
+| **Pre-pitch dropout** | 50%→75% | 50-watched holds but 75-watched drops | Viewers leave RIGHT BEFORE product reveal | The case-building section is too long or loses urgency — they're bored before the payoff |
+| **Pitch failure** | 75%→CVR | 75-watched is healthy but CVR is low (<1%) | They heard the pitch but didn't buy | Offer/price/CTA issue, not creative. VSL audit needed. |
+| **Audience problem** | CVR→NCR | Good CVR, low NCR (<45%) | Converting existing customers, not new | Audience targeting or exclusion list issue |
+| **Fatigue** | Trend over time | Good early metrics, declining ROI/CVR in daily data | Creative exhausted — audience saturated | Rotate new variants |
+| **Scaling signal** | Nowhere — all green | All metrics green + upward daily trend | Working — needs fuel | Increase budget |
+
+**How to read the retention curve:**
+1. Calculate the **drop ratio** between each consecutive checkpoint: `imp-3sec → three-TP → 25-watched → 50-watched → 75-watched → 100-watched`
+2. The **biggest percentage drop** between two consecutive checkpoints = the segment where viewers are leaving
+3. Name that segment using the creative structure table above
+4. The fix targets THAT specific segment — not the whole creative
+
+**Nature's Blend CM account note:** A connector/early-VSL dropout in this account traces most commonly to a **cadence break** — any section where Cesar stops talking and shifts to editorial footage (e.g., the 0:12–0:18 fresh food pouches section in STOR-3169). Always check if a retention drop maps to a known editorial section before diagnosing. The fix is usually cutting/shortening the editorial and keeping Cesar on screen.
 
 ## Procedure
 
@@ -275,29 +314,65 @@ For each variant (each `ad_name` row from Step 2):
 5. **For brands without hard benchmarks** (Dental Chews, or any brand not in the tables): report the raw numbers and trend direction only. Do not assign Green/Yellow/Red flags. State: "No established benchmarks — reporting trajectory only."
 6. **For brands with partial benchmarks** (Mobility Renew, Badlands, Power Foods — only ROI + CAC): score those two metrics, report the rest without flags.
 
-### Step 5 — Diagnose Funnel Shape
+### Step 5 — Diagnose Funnel Shape (Segment-by-Segment)
 
-Read the shape of the funnel data, not just the numbers. Walk through the metrics in order:
+This is the most important step. Read the retention curve as a **segment-by-segment dropoff map**, not just aggregate numbers.
 
-**Facebook funnel (use these measures):**
-1. **imp→3sec (`imp-3sec`)** — Is the hook catching attention?
-2. **3sec→TP (`three-TP`)** — Is the ad holding through the thruplay?
-3. **CVR** — Are viewers converting?
-4. **NCR** — Are conversions coming from new customers?
-5. **Continuity (`continuity_opt_in`)** — Are customers opting in to subscriptions?
+**5a. Detect creative format from ad_name:**
+- If ad_name contains "TS" (case-insensitive) → **TS-only format** (thumbstopper straight to VSL, no connector)
+- Otherwise → **Ad body format** (has 30-60s connector between hook and VSL)
+- Note the format in the diagnosis.
 
-**YouTube funnel (use these measures instead):**
-1. **View rate (`view_rate`)** — Is the hook catching attention? (equivalent to imp→3sec)
-2. **Retention curve (`watched_25_rate` → `watched_50_rate` → `watched_75_rate` → `watched_100_rate`)** — Is the ad holding?
-3. **CVR** — Are viewers converting?
-4. **NCR** — Are conversions coming from new customers?
-5. Continuity is not available on YouTube — skip this metric.
+**5b. Build the retention waterfall (Facebook):**
 
-Match the pattern of Green/Yellow/Red flags to one of the 6 diagnostic categories from the Funnel Diagnosis Patterns table.
+Calculate the drop ratio between each consecutive checkpoint:
 
-**If on the Nature's Blend CM account:** Check for cadence break patterns before diagnosing hold problems. Note this in the diagnosis.
+```
+imp-3sec  →  three-TP  →  25-watched  →  50-watched  →  75-watched  →  100-watched
+   TS         Connector     Early VSL      Mid VSL       Product        VSL Close
+              / VSL entry                                Reveal
+```
 
-Output 2–3 sentences explaining what the funnel shape is telling you, then name the specific pattern and root cause.
+For each transition, compute: `next_checkpoint / previous_checkpoint`. Example:
+- `three-TP / imp-3sec` = connector retention
+- `25-watched / three-TP` = VSL entry retention (are they committing to the long video?)
+- `50-watched / 25-watched` = mid-VSL retention (is the story holding?)
+- `75-watched / 50-watched` = pre-pitch retention (do they make it to product mention?)
+- `100-watched / 75-watched` = close retention (do they finish after hearing the pitch?)
+
+**5c. Identify the biggest drop:**
+
+The transition with the **lowest ratio** (biggest percentage loss) is where the creative is failing. Name the specific segment using the Creative Structure table.
+
+**5d. Map to diagnosis pattern:**
+
+Match the drop location to the Funnel Diagnosis Patterns table. Be specific:
+- Don't say "hold problem" — say "**connector dropout at 3sec→TP** — viewers aren't making it past the ad body into the VSL. The connector angle may not be bridging effectively."
+- Don't say "VSL problem" — say "**pre-pitch dropout at 50%→75%** — viewers are engaged through the mid-VSL but leaving before the product reveal at ~15 min. The case-building section is losing urgency."
+
+**5e. Check CVR relative to 75-watched:**
+
+This is critical. If 75-watched is healthy (viewers ARE reaching the product pitch) but CVR is still low:
+- The problem is NOT the creative. It's the **VSL pitch, offer, price, or landing page.**
+- State this clearly: "Viewers are reaching the product reveal — the creative is doing its job. Low CVR points to a pitch/offer issue, not a creative issue."
+
+**5f. YouTube equivalent:**
+
+YouTube doesn't have `imp-3sec` or `three-TP`. Use this waterfall instead:
+```
+view_rate  →  watched_25_rate  →  watched_50_rate  →  watched_75_rate  →  watched_100_rate
+   Hook        Early VSL           Mid VSL             Product Reveal      VSL Close
+```
+Same logic — find the biggest drop, name the segment.
+
+**5g. Final check — NCR + Continuity (FB only):**
+- **NCR** — Are conversions coming from new customers? Low NCR (<45%) = audience problem.
+- **Continuity** — Are customers opting into subscriptions? Low continuity (<25%) = offer/funnel issue downstream.
+
+Output 2–3 sentences explaining:
+1. What the retention curve shape tells you (where the biggest drop is)
+2. Which specific creative segment is responsible
+3. Whether the problem is creative (TS/connector/VSL pacing) or non-creative (pitch/offer/audience)
 
 ### Step 6 — Compare Variants
 
@@ -330,7 +405,7 @@ Assign one of four verdicts **per variant**. Be decisive — the team needs a ca
 **Verdict definitions:**
 
 - **🟢 SCALE** — All core metrics green. ROI at or above target, CAC in range, retention healthy. Recommend increasing spend.
-- **🟡 OPTIMIZE** — Good bones but one specific fixable problem identified. State exactly what to fix and what outcome to expect. Do NOT recommend pausing — give the fix first.
+- **🟡 OPTIMIZE** — Good bones but one specific fixable problem identified. **Name the exact creative segment** (TS, connector, early VSL, mid-VSL, pre-pitch, pitch) and what to change. Example: "Connector dropout — cut the ad body from 45s to 25s and go to VSL faster." Do NOT recommend pausing — give the fix first.
 - **⏸️ PAUSE** — Mixed signals or insufficient data (< $2,000 spend). Specify what trigger metric to watch and when to recheck.
 - **🔴 KILL** — Below floor on ROI + CAC simultaneously with no clear fixable cause. Reallocate budget.
 
@@ -353,8 +428,13 @@ Assign one of four verdicts **per variant**. Be decisive — the team needs a ca
 [🟢/🟡/🔴 flag per metric where benchmarks exist]
 [If low sample size: "⚠️ Low sample size (N customers) — rates are directional only."]
 
+## Retention Waterfall
+[Creative format: TS-only / Ad body]
+[Table: checkpoint | % retained | drop from previous | segment label]
+[Arrow showing where the biggest drop is: "⚠️ Biggest drop: 50%→75% (pre-pitch dropout)"]
+
 ## Funnel Diagnosis
-[2–3 sentences on what the funnel shape is telling you]
+[2–3 sentences: where the drop is, which creative segment, whether it's a creative or non-creative problem]
 [Name the specific pattern from the diagnosis table]
 
 ## Variant Comparison
