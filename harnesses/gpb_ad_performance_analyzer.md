@@ -232,6 +232,22 @@ Read the retention curve as a **segment-by-segment dropoff map.** Each drop tell
 - Identify which account the ticket lives in from the results.
 - If found on multiple accounts, report all and ask the user to clarify.
 
+### Step 1.5 — Pull Creative Context from Jira (single-ticket mode only)
+
+For VIDPET tickets, use `getJiraIssue` (Jira MCP) to pull the ticket and extract:
+
+1. **Thumb stopper headlines** — from the description's "Creative Versions" section. Map each variant letter (vA, vB, vC...) to its TS headline. Example: `vD = "Cesar Millan's Recipe for Dog Longevity"`, `vE = "Cesar Millan: Your Dog Is Trying to Tell You Something"`.
+2. **VSL name** — which VSL all variants route to (e.g., "Cesar Solo VSL - no MM").
+3. **Team** — producer, editor, assignee from the Jira fields.
+4. **Ticket status** — Testing, Editing, Done, etc.
+5. **Delivery specs** — 4x5, 16x9, etc.
+
+For STOR/ACT/VTD tickets, Rill already has producer/editor/ticket_status — skip the Jira lookup unless you need TS headlines (which older tickets may not have in Jira).
+
+**Why this matters:** The whole point of the analysis is connecting DATA to CREATIVE DECISIONS. "vD has the highest thruplay retention" is useless. "vD — 'Cesar Millan's Recipe for Dog Longevity' — has the highest thruplay retention, suggesting the longevity/lifespan angle hooks committed viewers better than the curiosity angles in vE and vF" is actionable.
+
+**If the Jira lookup fails**, continue without it — degrade gracefully. Just note "Creative context unavailable — Jira lookup failed."
+
 ### Step 2 — Query Rill: Aggregate Totals (all time for this ticket)
 
 Run this query on **both** `fb_campaigns` and `youtube_dashboard`. If one platform returns no results, report that and continue with the other.
@@ -300,6 +316,28 @@ If the ad has been running less than 90 days, this will return the full run — 
    - `↓` (decelerating) if last-3-day avg < daily avg × 0.8
    - `→` (steady) otherwise
 4. Include velocity in the Daily Trend section of the report: e.g., `"↑ $850/day avg (accelerating)"`
+
+### Step 3.5 — Comparative Benchmark Query
+
+To give context on how this pack compares to other recent ads on the same account, run a quick benchmark query:
+
+```
+metrics_view: fb_campaigns
+dimensions: [ad_name]
+measures: [sum_spend, roi, cac, cvr, imp-3sec, three-TP]
+time_range: { start: "<180 days ago>", end: "<tomorrow>" }
+time_zone: "America/Los_Angeles"
+where: account_name = '<same account>' AND sum_spend > 500
+sort: [roi desc]
+limit: 10
+```
+
+This gives you the **top 10 performing ads on the same account in the last 6 months** (with meaningful spend). Use this to:
+- Frame the current pack's performance: "vD's 221% ROI puts it in the top 3 of all Nature's Blend CM ads in the last 6 months"
+- Or provide reality check: "vD's ROI looks strong but the account median is 95% — this pack is performing above average"
+- Identify what the best recent ads have in common (retention shape, hook rates) vs. this pack
+
+**If this query fails or returns no data, skip it.** It's context, not core analysis.
 
 ### Step 4 — Score Against Benchmarks
 
@@ -419,6 +457,8 @@ If only one variant exists, skip this section entirely.
 
 ### Step 7 — Deliver Verdict & Output Report
 
+**This is not a data dump. This is a creative brief.** The report should read like a senior media buyer sitting down with the producer/editor and walking them through exactly what's happening, why, and what to do about it. Every number should connect to a creative decision.
+
 **Multi-ad summary mode:** If the query returned **more than 10 ad variants**, do NOT produce individual full reports for each. Instead:
 1. Produce a **ranked summary table** sorted by ROI (or spend if ROI is null): top 10 performers, bottom 5 performers, with columns: ad_name | spend | ROI | CAC | CVR | verdict.
 2. Below the table, add an **aggregate patterns** section: most common funnel shape issue across all variants, account-level blended metrics, and any systemic patterns (see Step 5h).
@@ -443,49 +483,125 @@ Assign one of four verdicts **per variant**. Be decisive — the team needs a ca
 
 ```
 # Performance Analysis: [TICKET NAME]
-**Account:** [Account Name]
-**Platform:** [Facebook / YouTube / Both]
-**Date Range:** [Range of data pulled]
-**Total Spend:** $[X]
-**Producer:** [name from Rill or "—"] | **Editor:** [name or "—"] | **Status:** [ticket_status or "—"]
-**Data Source:** [open_url from Rill query response — this is a direct link to the filtered data]
-[If zero-spend variants were excluded: "Excluded N zero-spend variants."]
+**Account:** [Account Name] | **Platform:** Facebook [/ YouTube] | **Status:** [ticket_status]
+**Producer:** [name] | **Editor:** [name] | **VSL:** [VSL name from Jira]
+**Spend:** $[total] across [N] variants | **Date range:** [range]
+**Data:** [open_url link]
 
 ---
 
-## Aggregate Performance
-[Table: variant | spend | ROI | CAC | CVR | 3sec→TP (FB) or view_rate (YT) | NCR | continuity (FB only)]
-[🟢/🟡/🔴 flag per metric where benchmarks exist]
-[If low sample size: "⚠️ Low sample size (N customers) — rates are directional only."]
+## 📋 The Pack at a Glance
 
-## Retention Waterfall
-[Creative format: TS-only / Ad body]
-[Table: checkpoint | % retained | drop from previous | segment label]
-[Arrow showing where the biggest drop is: "⚠️ Biggest drop: 50%→75% (pre-pitch dropout)"]
+[If Jira context available, list each variant with its TS headline:]
 
-## Funnel Diagnosis
-[2–3 sentences: where the drop is, which creative segment, whether it's a creative or non-creative problem]
-[Name the specific pattern from the diagnosis table]
+| Variant | Thumb Stopper Headline | Spend | ROI | CAC | Verdict |
+|---|---|---|---|---|---|
+| vD | "Cesar Millan's Recipe for Dog Longevity" | $159 | 221% 🟢 | $79 🟢 | ⏸️ PAUSE — early but promising |
+| vE | "Your Dog Is Trying to Tell You Something" | $93 | — | — | ⏸️ testing |
+| ... | ... | ... | ... | ... | ... |
 
-## Variant Comparison
-[If multiple variants — clear winner identified, per-variant recommendation]
-[If single variant — "Single variant — no comparison needed."]
+[If Jira context NOT available, use variant letters only — still show the table]
+[If zero-spend variants excluded: "Excluded N zero-spend variants."]
+[If low sample size: "⚠️ Low sample size — only N customers. All rates are directional, not diagnostic."]
 
-## Daily Trend
-[1–2 sentences on trajectory — improving, declining, stable, fatiguing]
-[Spend velocity: "↑ $X/day avg (accelerating)" or "→ $X/day avg (steady)" or "↓ $X/day avg (decelerating)"]
+---
 
-## Verdict
-[🟢 SCALE / 🟡 OPTIMIZE / ⏸️ PAUSE / 🔴 KILL]
-[One specific action to take]
-[Expected outcome if action is taken]
+## ✅ What's Working
+
+[2-4 bullet points. Be specific. Connect data to creative decisions. Examples:]
+- "**vD's hook is selecting for committed viewers.** Lowest 3sec rate (37.9%) but highest thruplay carry-through (68.5%) — the 'Recipe for Dog Longevity' headline filters out casual scrollers and pulls in people who actually want to watch. That's exactly what you want for a 20-minute VSL."
+- "**The VSL is converting when people reach it.** 221% ROI on vD with only $159 spend. CAC at $79 is well below the $130-145 target range — early signal but strong."
+- "**Multiple variants hooking above 49%.** vE (53.8%), vA (50.0%), vB (49.5%) — the pack has broad hook strength."
+
+[Every bullet must reference a specific metric AND explain WHY it matters for the creative. No orphaned numbers.]
+
+---
+
+## ❌ What's Not Working
+
+[2-4 bullet points. Be specific about WHERE the problem is and WHAT creative segment causes it.]
+- "**Massive TP→25% cliff across all variants.** vD drops from 25.9% thruplay to 4.3% at the 25% mark. vE is worse: 24% → 1.7%. This is the VSL handoff — viewers commit past the hook but bail in the first few minutes of the long-form content. This is a systemic VSL issue, not variant-specific."
+- "**6 of 7 variants have zero conversions.** Only vD has converted. The pack is too early to judge most variants — but the universal TP→25% cliff suggests even scaled spend won't fix the downstream."
+
+[Name the creative segment. Name the pattern from the diagnosis table. Don't just say "retention is low" — say WHERE it breaks and what that means for the edit.]
+
+---
+
+## 🔬 Retention Deep Dive
+
+**Creative format:** [TS-only / Ad body — detected from ad_name]
+**VSL:** [name from Jira] (~[X] minutes)
+
+**Lead variant ([vX] — "[TS headline]"):**
+
+| Checkpoint | Rate | Segment | Drop | |
+|---|---|---|---|---|
+| imp→3sec | [X]% | Thumbstopper | — | [🟢/🟡/🔴 or "standalone"] |
+| three-TP | [X]% | Connector/VSL entry | — | |
+| TP→25% | [X]% | Early VSL | **[X]% drop** | ⚠️ biggest cliff |
+| 25→50% | [X]% | Mid VSL | [X]% drop | |
+| 50→75% | [X]% | Product reveal | [X]% drop | |
+| 75→100% | [X]% | VSL close | [X]% drop | |
+
+[If systemic pattern: "⚠️ Systemic: [N/total] variants show the same cliff at [segment]. This is a structural issue with the [VSL/connector], not the thumb stoppers."]
+
+**What the curve tells you:**
+[2-3 sentences connecting the retention shape to specific creative moments. Example:]
+"Viewers are hooked by the TS and commit through the connector — but they're bailing in the first 5 minutes of the VSL. At the ~5 min mark on a 20-minute VSL, that's typically the problem-agitation section. If there's an editorial segment here (B-roll without Cesar talking), that's likely where they leave. The fix is keeping Cesar on screen through this section."
+
+---
+
+## 📊 How This Compares
+
+[Use data from Step 3.5 comparative benchmark query:]
+- "**Account context:** The top 10 CM account ads in the last 6 months average [X]% ROI and $[X] CAC. vD's 221% ROI would rank [#X] if it holds at scale."
+- "**Retention context:** The best-performing ads on this account have TP→25% ratios of [X-Y]%. This pack's [X]% is [above/below/in line with] that range."
+- "**Pack-stage context:** At $369 total spend, this pack is in early testing. Typical packs don't stabilize until $2K-5K total spend."
+
+[If benchmark query failed or returned no data, skip this section.]
+
+---
+
+## 🎯 Where to Go from Here
+
+[Numbered action items. Written in producer/editor language — these are things the user can actually DO in their next edit session or in Ads Manager.]
+
+1. **Let vD run to $500-1K before making any calls.** 221% ROI at $159 is a strong early signal but the sample is tiny (likely 1-2 conversions). It needs 5-10x more spend to confirm.
+2. **Watch vE closely — it could overtake vD.** Higher hook rate (53.8% vs 37.9%) with decent thruplay. If it starts converting, the combo of broad hook + conversions could beat vD's efficiency at scale.
+3. **Investigate the TP→25% cliff.** This is the #1 issue across the entire pack. Pull up the VSL timeline — what happens in the first 3-5 minutes after the hook? If there's an editorial/B-roll section without Cesar, that's your likely culprit. Consider: [specific editing suggestion based on the pattern].
+4. **Don't kill any variants yet.** Everything under $50 spend is noise. Let the pack run to $1K+ total before cutting.
+
+[If the analysis can't fully explain a pattern, ASK for more context:]
+"**To go deeper:** Can you share a screenshot of vD's first frame? The low 3sec rate + high thruplay is unusual — I want to see if the visual is intentionally filtering (bold text hook) or if the thumbnail just isn't compelling and the viewers who DO click are self-selected committed."
+
+---
+
+## Verdict: [per variant]
+
+| Variant | Verdict | One-line reason |
+|---|---|---|
+| vD | ⏸️ PAUSE — promising, needs spend | 221% ROI early signal — let it run to $1K |
+| vE | ⏸️ PAUSE — testing | Highest hook rate, no conversions yet |
+| vB | ⏸️ PAUSE — testing | Good hook, needs spend |
+| ... | ... | ... |
+
+**Pack-level verdict:** [SCALE / OPTIMIZE / PAUSE / KILL] — [one sentence summary]
 
 ---
 *Analyzed by GPB Ad Performance Analyzer · Powered by Rill + Claude*
+*[If Jira context was used: "Creative context pulled from VIDPET-XXX"]*
 ```
 
+**Report philosophy — READ THIS:**
+- **Every number must connect to a creative decision.** Don't say "ROI is 221%." Say "vD's 'Recipe for Dog Longevity' angle is converting at 221% ROI — the longevity framing is working."
+- **Name the thumb stopper headline when discussing variants.** "vD" means nothing. "vD — 'Cesar Millan's Recipe for Dog Longevity'" tells the producer exactly which creative angle is winning.
+- **Diagnosis is about WHERE, not WHAT.** Don't say "retention is low." Say "viewers leave at the 5-minute mark, which is the problem-agitation section of the VSL."
+- **Recommendations are editing actions.** Not "improve retention" but "cut the B-roll section at 4:30 and keep Cesar on screen through the problem-agitation segment."
+- **Ask for what you need.** If the data shows a pattern you can't fully explain without seeing the creative, ASK. "Can you share vD's first frame?" or "What happens in the VSL at the 5-minute mark?" — this turns the analysis into a conversation, not a one-shot report.
+- **Use visual formatting.** Tables, bold callouts, emoji section headers, clear separation between sections. This should be scannable — a producer should be able to glance at it and know the verdict in 5 seconds, then read deeper.
+
 **Report field notes:**
-- **Producer/Editor/Status:** Populated from Rill `producer`, `editor`, `ticket_status` dimensions. These are available for legacy tickets (STOR/ACT/VTD) but null for VIDPET tickets. If null, show "—" — never print "null".
+- **Producer/Editor/Status:** Pull from Jira first (Step 1.5), fall back to Rill dimensions. If null everywhere, show "—" — never print "null".
 - **Zero-spend note:** Only show if variants were actually excluded.
 - **Low-sample-size warning:** Only show if `total_new_customers < 10` or `total_customers < 15`.
 
