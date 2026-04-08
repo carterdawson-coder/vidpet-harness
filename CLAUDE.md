@@ -31,6 +31,9 @@ When the user says **"Create a new VIDPET ticket"** or **"Update VIDPET-XXX"**, 
 - **"Run creative performance digest"** — Follow `harnesses/creative_performance_alerts.md` Weekly Digest section. Sends personalized summary DMs to each opted-in roster member with top performers, milestone hits, on-the-radar ads, and week totals. Automatically runs Fridays at 2:30 PM PST.
 
 ### Ad Performance Analyzer (Rill)
-- **"Analyze [TICKET]"** — Follow `harnesses/gpb_ad_performance_analyzer.md` EXACTLY. Queries **Rill** (NOT Jira) for ad performance data, scores against GPB benchmarks, diagnoses funnel shape, and delivers a SCALE/OPTIMIZE/PAUSE/KILL verdict. Do NOT look up the Jira ticket — go straight to Rill queries.
+- **"Analyze [TICKET]"** — Follow `harnesses/gpb_ad_performance_analyzer.md` EXACTLY. Queries **Rill** (NOT Jira) for ad performance data, scores against GPB benchmarks, diagnoses funnel shape, and delivers a SCALE/OPTIMIZE/PAUSE/KILL verdict. Default: producer report.
 - **"Analyze [TICKET] on the [Account] account"** — Same as above, with explicit account override.
+- **"Analyze [TICKET] --editor"** — Editor-focused report: timestamp-heavy retention waterfall, specific edit points with seconds, pacing recommendations.
+- **"Analyze [TICKET] --offer-manager"** — Offer manager report: CAC/NCR/continuity scoring, offer health diagnosis, split test analysis.
+- **"Analyze [TICKET] --media-buyer"** — Media buyer report: budget allocation, scaling plan, CPM trends, fatigue signals.
 - **"Pull performance for all [pattern] ads on the [Account] account last [N] days"** — Same harness, multi-ad mode. Scores each matching ad individually.

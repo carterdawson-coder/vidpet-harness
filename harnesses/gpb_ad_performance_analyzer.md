@@ -7,7 +7,25 @@ When the user says **"Analyze [TICKET]"**, **"Analyze [TICKET] on the [Account] 
 - **Single ticket**: `"Analyze VIDPET-381"` — pulls all-time data for that ticket, scores, diagnoses, delivers verdict.
 - **Single ticket + account override**: `"Analyze STOR-3169 on the Nature's Blend CM account"` — bypasses auto-detection, uses the specified account.
 - **Multi-ad**: `"Pull performance for all CesarRanks ads on the CM account last 90 days"` — broader filter, scores each ad individually.
-- **`--slack` flag**: Appending `--slack` to any mode also sends the final report as a Slack DM to the requesting user (Carter Dawson, `U044BSXELMC`).
+- **`--slack` flag**: Appending `--slack` to any mode also sends the final report as a Slack DM. Default recipient: Carter Dawson (`U044BSXELMC`). To DM someone else: `--slack @Name`.
+
+### Role Flags (optional — change the report lens)
+
+Append a role flag to any command to get a report tailored to that role. **Same data, same queries, different output focus.**
+
+| Flag | Role | Core Question | Report Focus |
+|---|---|---|---|
+| *(no flag)* | **Producer** (default) | "Which creative angle is winning and what do I make next?" | Hook angle psychology, variant comparison, TS headline analysis, pack history, what to create next |
+| `--editor` | **Editor** | "Where exactly in the timeline do I cut?" | Timestamp-heavy retention waterfall, specific edit points with seconds, B-roll/editorial section diagnosis, pacing recommendations |
+| `--offer-manager` | **Offer Manager** | "Is this offer's unit economics healthy?" | CAC vs. blended CAC, NCR, continuity opt-in, AOV, refund rate, offer-level health vs. creative-level health, split test results |
+| `--media-buyer` | **Media Buyer** | "Where do I put the budget and when do I scale?" | ROI/CAC scoring, spend velocity, budget allocation, CPM trends, audience fatigue signals, scaling thresholds, pacing plan |
+
+Examples:
+- `"Analyze VIDPET-458"` → producer report (default)
+- `"Analyze VIDPET-458 --editor"` → editor report
+- `"Analyze VIDPET-458 --offer-manager"` → offer manager report
+- `"Analyze VIDPET-458 --media-buyer"` → media buyer report
+- `"Analyze VIDPET-458 --editor --slack"` → editor report, sent to Slack
 
 ## Constants
 
@@ -135,6 +153,7 @@ YouTube:  https://rill.goldenhippo.com/goldenhippo-rill/youtube_dashboard
 | ROI | ≥ 107% annualized | 80–107% | < 80% |
 | CAC | $130–$145 | $145–$165 | > $165 or < $100 |
 | CVR | ≥ 1.5% | 1.0–1.5% | < 1.0% |
+| Hook Rate (imp-3sec) | ≥ 15% | 10–15% | < 10% |
 | 3sec→TP Retention | 38–57% | 30–38% | < 30% |
 | NCR | ≥ 60% | 45–60% | < 45% |
 | Continuity Opt-In | ≥ 35% | 25–35% | < 25% |
@@ -217,7 +236,7 @@ Read the retention curve as a **segment-by-segment dropoff map.** Each drop tell
 | Pattern | Where the Drop Is | Signals | Root Cause | Fix |
 |---|---|---|---|---|
 | **TS problem** | imp→3sec | Low imp→3sec (<15%) | Thumbstopper not stopping | New hook visual, first-frame change |
-| **Connector problem** | 3sec→TP or 3sec→25% | Good 3sec, big drop before 25-watched | Ad body / connector loses them before VSL kicks in | Tighten connector, cut to VSL faster, or test TS-only format |
+| **Connector problem** | 3sec→TP or 3sec→25% | Good 3sec, big drop before 25-watched. Connector is 30-60s; healthy TP rate is 38-57% of 3sec viewers. Below 30% = connector is losing them. | Ad body / connector loses them before VSL kicks in | If connector >45s, cut to 25-30s. If already short, the creative angle isn't bridging to the VSL — test TS-only format (skip connector entirely) |
 | **Early VSL dropout** | 25%→50% | Good entry but 50-watched drops sharply from 25-watched | Story/problem-agitation section loses momentum | Pacing issue — tighten the problem section, add more Cesar talking (not editorial) |
 | **Pre-pitch dropout** | 50%→75% | 50-watched holds but 75-watched drops | Viewers leave RIGHT BEFORE product reveal | The case-building section is too long or loses urgency — they're bored before the payoff |
 | **Pitch failure** | 75%→CVR | 75-watched is healthy but CVR is low (<1%) | They heard the pitch but didn't buy | Offer/price/CTA issue, not creative. VSL audit needed. |
@@ -255,12 +274,14 @@ Read the retention curve as a **segment-by-segment dropoff map.** Each drop tell
 
 For VIDPET tickets, use `getJiraIssue` (Jira MCP) to pull the ticket and extract:
 
-1. **Thumb stopper headlines** — from the description's "Creative Versions" section. Map each variant letter (vA, vB, vC...) to its TS headline. Example: `vD = "Cesar Millan's Recipe for Dog Longevity"`, `vE = "Cesar Millan: Your Dog Is Trying to Tell You Something"`.
+1. **Thumb stopper headlines** — from the description's "Creative Versions" section. Map each variant letter to its TS headline using **positional order**: the first TS line in the description = vA, second = vB, third = vC, etc. The variant letter in the Rill ad_name (`_vA-`, `_vB-`, etc.) corresponds to the order they appear in the Jira ticket description.
+   - TS1 → vA, TS2 → vB, TS3 → vC, TS4 → vD, TS5 → vE, TS6 → vF, and so on.
+   - **Verify by checking the Rill ad_name** — if the ad_name contains a recognizable TS headline fragment, confirm the mapping. If the mapping seems wrong, note the uncertainty.
+   - Example: If Jira lists TS4 = "Cesar Millan's Recipe for Dog Longevity", then `vD = "Cesar Millan's Recipe for Dog Longevity"`.
 2. **VSL name** — which VSL all variants route to (e.g., "Cesar Solo VSL - no MM").
 3. **Team** — producer, editor, assignee from the Jira fields.
 4. **Ticket status** — Testing, Editing, Done, etc.
 5. **Delivery specs** — 4x5, 16x9, etc.
-
 6. **VSL duration** — estimate from ticket context (description, VSL name) or default to 20 minutes for standard Cesar Solo VSLs. Store as `vsl_duration_minutes` for timestamp computation in the retention waterfall. Other known durations: Fast/Super Cesar VSL = ~12 minutes, Meghan Cut VSL = ~15 minutes.
 
 For STOR/ACT/VTD tickets, Rill already has producer/editor/ticket_status — skip the Jira lookup unless you need TS headlines (which older tickets may not have in Jira).
@@ -307,7 +328,7 @@ limit: 250
 
 **For single ticket + account override:** Add `AND account_name = '<exact account name>'` to the where clause.
 
-**For multi-ad mode:** Replace the ticket filter with the user's pattern (e.g., `ad_name ilike '%CesarRanks%'`) and use the user-specified time range.
+**For multi-ad mode:** Replace the ticket filter with the user's pattern (e.g., `ad_name ilike '%CesarRanks%'`) and use the user-specified time range. **Skip Steps 1.5 (Jira pull), 3.75 (pack-vs-pack), and the "To Go Deeper" asset requests** — these are single-ticket features that don't apply to broad multi-ad queries.
 
 ### Step 3 — Query Rill: Daily Trend
 
@@ -320,7 +341,7 @@ dimensions: [date]
 measures: [sum_spend, roi, cac, cvr]
 time_range: { start: "<90 days ago 00:00:00Z>", end: "<tomorrow 00:00:00Z>" }
 time_zone: "America/Los_Angeles"
-where: ad_name ilike '%[TICKET]%'
+where: ad_name ilike '%[TICKET]%' (for VIDPET tickets: ad_name ILIKE '%VIDPET-XXX%' OR ad_name ILIKE '%VIDEPT-XXX%')
 sort: [date asc]
 limit: 90
 ```
@@ -346,12 +367,15 @@ To give context on how this pack compares to other recent ads on the same accoun
 metrics_view: fb_campaigns
 dimensions: [ad_name]
 measures: [sum_spend, roi, cac, cvr, imp-3sec, three-TP]
-time_range: { start: "<180 days ago>", end: "<tomorrow>" }
+time_range: { start: "<180 days ago 00:00:00Z>", end: "<tomorrow 00:00:00Z>" }
 time_zone: "America/Los_Angeles"
-where: account_name = '<same account>' AND sum_spend > 500
+where: account_name = '<same account>'
+having: sum_spend > 500
 sort: [roi desc]
 limit: 10
 ```
+
+**Note:** The `having` parameter filters AFTER aggregation — use it for aggregate measures like `sum_spend`. The `where` parameter filters raw rows BEFORE aggregation — use it for dimensions like `account_name`. Never put aggregate measures in `where`.
 
 This gives you the **top 10 performing ads on the same account in the last 6 months** (with meaningful spend). Use this to:
 - Frame the current pack's performance: "vD's 221% ROI puts it in the top 3 of all Nature's Blend CM ads in the last 6 months"
@@ -370,10 +394,13 @@ dimensions: [ad_name]
 measures: [sum_spend, roi, cac, cvr]
 time_range: { start: "<90 days ago 00:00:00Z>", end: "<tomorrow 00:00:00Z>" }
 time_zone: "America/Los_Angeles"
-where: ad_name ILIKE '%VIDPET-%' AND account_name = '<same account>' AND sum_spend > 50
+where: ad_name ILIKE '%VIDPET-%' AND account_name = '<same account>'
+having: sum_spend > 50
 sort: [sum_spend desc]
 limit: 100
 ```
+
+**Note:** Use `having` (not `where`) for the `sum_spend > 50` filter — it's an aggregate measure.
 
 **Post-process:**
 1. Extract ticket number from each ad_name (e.g., "VIDPET-450" from the full name). Group all ad_name rows by ticket number.
@@ -606,6 +633,12 @@ Assign one of four verdicts **per variant**. Be decisive — the team needs a ca
 
 [If systemic pattern: "⚠️ Systemic: [N/total] variants show the same cliff at [segment]. This is a structural issue with the [VSL/connector], not the thumb stoppers."]
 
+**YouTube variant (if YouTube data exists):** Use the same table structure but substitute YouTube measure names:
+- `view_rate` instead of `imp→3sec` (standalone hook rate)
+- `watched_25_rate` → `watched_50_rate` → `watched_75_rate` → `watched_100_rate` for the waterfall
+- No `three-TP` equivalent — start step-to-step ratios from `watched_25_rate`
+- Present as a separate table under "**YouTube Retention:**" — never blend FB and YT in the same table.
+
 **⏱️ Editor question:** "What's happening in the VSL at ~[timestamp of biggest cliff]? That's where [X]% of remaining viewers leave across [all/most] variants. [If Nature's Blend CM account: Check if there's an editorial B-roll section here where Cesar stops talking — that's the most common cause of retention drops in this account.]"
 
 **What the curve tells you:**
@@ -625,9 +658,7 @@ Assign one of four verdicts **per variant**. Be decisive — the team needs a ca
 - "Account average for packs under $[threshold] total: ~[X]% ROI — vD's [X]% is [well above / in line / below]"
 
 [If no comparable packs: "First VIDPET pack on this account in the last 90 days — no direct comparison available."]
-[If Step 3.5 or 3.75 queries failed: skip that sub-section gracefully, don't leave blanks]
-
-[If benchmark query failed or returned no data, skip this section.]
+[If either sub-section's query failed or returned no data, skip that sub-section gracefully — don't leave blanks or show errors.]
 
 ---
 
@@ -694,6 +725,67 @@ Based on current performance and spend velocity ($[last-3-day avg from Step 3]/d
 *[If Jira context was used: "Creative context pulled from VIDPET-XXX"]*
 ```
 
+### Role-Specific Report Adjustments
+
+The report structure above is the **Producer** (default) view. When a role flag is specified, adjust the output as follows. **Steps 1-6 (data gathering, scoring, diagnosis) are IDENTICAL for all roles** — only the report output changes.
+
+#### `--editor` adjustments:
+- **Retention Deep Dive becomes the PRIMARY section** — move it to the top, expand it.
+- **Add a "✂️ Edit Points" section** after Retention Deep Dive:
+  ```
+  ## ✂️ Edit Points
+  Based on the retention curve, here are specific edit recommendations:
+  1. **~[timestamp]: [Segment]** — [X]% of viewers leave here. [What's likely happening]. 
+     Recommendation: [Specific edit action — e.g., "Cut B-roll at 4:30, keep Cesar on camera through 5:15"]
+  2. **~[timestamp]: [Segment]** — [description + edit action]
+  [Each edit point references the EXACT timestamp, not a percentage]
+  ```
+- **Pacing analysis** — If the VSL has an identifiable pacing lull (e.g., 50%→75% drop is steeper than 25%→50%), note: "The VSL loses momentum between ~[X]:00 and ~[Y]:00. Consider tightening this section by [X] seconds."
+- **De-emphasize:** Hook angle psychology, budget allocation, milestones (editors don't control these). Keep them as a brief "Context" section at the bottom if present.
+- **Tone:** Speak in editor language — "cut at", "trim", "tighten", "keep talent on screen", "B-roll section", "pacing", "duration".
+
+#### `--offer-manager` adjustments:
+- **Lead with unit economics** — CAC, blended CAC (bcac), NCR, continuity opt-in, CPA. These are the primary scorecard.
+- **Add "💰 Offer Health" section** as the PRIMARY section:
+  ```
+  ## 💰 Offer Health
+  **CAC:** $[X] [🟢/🟡/🔴] (target: $130-145) | **Blended CAC:** $[X]
+  **NCR:** [X]% [🟢/🟡/🔴] — [X] of [Y] customers are new
+  **Continuity:** [X]% [🟢/🟡/🔴] — subscription opt-in rate
+  **CPA:** $[X] | **CVR:** [X]%
+  
+  **Diagnosis:** [Is this a creative problem or an offer/funnel problem?]
+  - If 75-watched is healthy but CVR is low → "Creative is delivering viewers to the pitch. Low conversion is an offer/funnel issue — check landing page, pricing, or offer structure."
+  - If NCR is low → "Conversions are coming from existing customers. Check audience exclusion lists and targeting."
+  - If continuity is low → "Customers are buying but not subscribing. This is a checkout flow or offer packaging issue."
+  ```
+- **Split test data** — If available, give this section MORE prominence. Show control vs. variant CVR lift, AOV comparison, continuity comparison.
+- **De-emphasize:** TS headline analysis, retention waterfall details, edit points. Summarize creative performance in 1-2 lines: "Creative is [working/not working] — [one sentence on why]."
+- **Tone:** Speak in offer manager language — "unit economics", "CAC efficiency", "NCR quality", "funnel health", "offer-level", "blended".
+
+#### `--media-buyer` adjustments:
+- **Lead with spend efficiency** — ROI, CAC, CPM, CTR, spend velocity.
+- **Budget Allocation becomes the PRIMARY section** — move to top, expand with more detail:
+  ```
+  ## 📊 Budget & Scaling Plan
+  **Current velocity:** $[X]/day ([↑/→/↓])
+  **Recommended daily budget:** $[X] (up from $[current] — [X]% increase)
+  
+  | Variant | Current $/day | Recommended $/day | Action | Trigger to Re-evaluate |
+  |---|---|---|---|---|
+  | vD | $[X] | $[X] | SCALE — increase 50% | If ROI drops below 107% at $1K spend |
+  | vE | $[X] | $[X] | HOLD — monitor | If no conversion by $200, pause |
+  | ... | ... | ... | ... | ... |
+  
+  **Scaling thresholds:**
+  - At $[X] daily → monitor CPM for audience saturation (CPM increasing >15% week-over-week = fatigue signal)
+  - At $[X] daily → check frequency cap and audience overlap
+  ```
+- **Milestone Checkpoints get MORE detail** — add CPM/frequency milestones alongside spend milestones.
+- **Add "📈 Fatigue Signals"** section: compare week-1 vs. current CPM, CTR trend, ROI trend. Flag if metrics are declining.
+- **De-emphasize:** TS headline psychology, VSL timestamp details, edit points. Summarize creative quality in 1-2 lines.
+- **Tone:** Speak in media buyer language — "scale", "budget", "CPM efficiency", "audience saturation", "frequency", "pacing", "day-over-day".
+
 **Report philosophy — READ THIS:**
 - **Every number must connect to a creative decision.** Don't say "ROI is 221%." Say "vD's 'Recipe for Dog Longevity' angle is converting at 221% ROI — the longevity framing is working."
 - **Name the thumb stopper headline when discussing variants.** "vD" means nothing. "vD — 'Cesar Millan's Recipe for Dog Longevity'" tells the producer exactly which creative angle is winning.
@@ -712,18 +804,21 @@ Based on current performance and spend velocity ($[last-3-day avg from Step 3]/d
 If the user included `--slack` in their prompt:
 
 1. Format the report for Slack markdown (replace `#` headers with `*bold*`, use code blocks for tables).
-2. Send via `slack_send_message` to `U044BSXELMC` (Carter Dawson) as a DM.
-3. Confirm: `"Report sent to Slack."`
+2. **Resolve recipient:** If `--slack @Name` was specified, look up that person's Slack ID using `slack_search_users`. If just `--slack` with no name, default to Carter Dawson (`U044BSXELMC`).
+3. Send via `slack_send_message` to the resolved Slack user ID as a DM.
+4. Confirm: `"Report sent to [Name] on Slack."`
 
 If `--slack` is NOT present, skip this step. Console output only.
 
 ## Important Rules
 
+- **"Analyze" = Rill first, Jira second.** When the user says "Analyze [TICKET]", your FIRST action is querying Rill via `query_metrics_view`. Jira enrichment (Step 1.5) comes after. If you find yourself reading a Jira ticket without having queried Rill yet, stop and start over.
 - **Never display `initial_st_variant` or `initial_st_control`** — these are internal Salesforce system fields.
 - **The `ticket` dimension in Rill is unreliable** — always filter by `ad_name ilike '%TICKET%'`.
 - **All Rill queries require a `time_range` parameter** — never omit it.
 - **Facebook uses `sum_spend`; YouTube uses `spend`** — never mix them up.
 - **Always cite the `open_url` from the Rill query response** in the report so the team can drill into the data themselves. Every `query_metrics_view` response includes an `open_url` field — use it.
+- **CTR is context, not a verdict driver.** CTR is queried but has no hard benchmark — it varies by audience, placement, and creative format. Use it as supplementary context (e.g., "CTR is low despite good hook rate — the ad is stopping thumbs but not driving link clicks") but don't score it Green/Yellow/Red.
 - **Be decisive.** The team needs a call, not a list of possibilities. Pick a verdict and commit to it.
 - **For split tests**, use `split_testing_model_metrics` view with `initial_split` dimension (format: ST-XXXXXXX).
 - **If a metric is null** (e.g., no conversions), report it as "—" or "no data", not zero. Note it in the diagnosis.
@@ -736,9 +831,21 @@ If `--slack` is NOT present, skip this step. Console output only.
 ## Usage Examples
 
 > "Analyze VIDPET-381"
+(Producer report — default)
+
+> "Analyze VIDPET-458 --editor"
+(Editor report — timestamp-heavy, edit points)
+
+> "Analyze VIDPET-458 --offer-manager"
+(Offer manager report — CAC, NCR, continuity, funnel health)
+
+> "Analyze VIDPET-458 --media-buyer"
+(Media buyer report — budget allocation, scaling plan, fatigue signals)
 
 > "Analyze STOR-3169 on the Nature's Blend CM account"
 
 > "Pull performance for all CesarRanks ads on the CM account last 90 days"
 
 > "Analyze VIDPET-450 --slack"
+
+> "Analyze VIDPET-458 --editor --slack @Jordonna Grace"
