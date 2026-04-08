@@ -154,7 +154,7 @@ YouTube:  https://rill.goldenhippo.com/goldenhippo-rill/youtube_dashboard
 | CAC | $130–$145 | $145–$165 | > $165 or < $100 |
 | CVR | ≥ 1.5% | 1.0–1.5% | < 1.0% |
 | Hook Rate (imp-3sec) | ≥ 15% | 10–15% | < 10% |
-| 3sec→TP Retention | 38–57% | 30–38% | < 30% |
+| Thruplay Rate (three-TP) | 38–57% | 30–38% | < 30% |
 | NCR | ≥ 60% | 45–60% | < 45% |
 | Continuity Opt-In | ≥ 35% | 25–35% | < 25% |
 
@@ -323,7 +323,11 @@ limit: 250
 
 **Metadata dimensions:** The `ticket`, `producer`, `editor`, and `ticket_status` dimensions are populated for legacy tickets (STOR/ACT/VTD) but will be null for VIDPET tickets (known Rill gap). When available, include them in the report header. When null, omit — never show "null".
 
+**Zero-result check:** If BOTH platforms return zero matching rows (not an API error — just no data), STOP and report: `"No ad data found for [TICKET] on any platform. Verify the ticket has been uploaded to Ads Manager and that the ad_name contains the ticket number."` Do not proceed to Steps 3-7 with no data.
+
 **Post-filter:** Remove any ad variants with spend = $0 from results before proceeding to scoring. Note in the report: `"Excluded N zero-spend variants."` if any were removed.
+
+**Duplicate detection:** Check for ad_names that differ only by a trailing " - Copy", "- Copy", "Copy", or version suffix. If two variants have near-identical names and similar performance (ROI within 10%), flag the lower-spend copy as a **duplicate** with verdict 🔴 KILL and note: `"Duplicate of [original] — splitting budget. Pause immediately."` Duplicates are a common real-world issue that wastes budget.
 
 **Limit warning:** If result count equals 250, log a warning: `"Query hit limit (250) — some ads may be truncated. Consider narrowing the filter or adding an account override."`
 
@@ -339,7 +343,7 @@ Run a daily breakdown for trend analysis. Query both platforms.
 ```
 metrics_view: fb_campaigns
 dimensions: [date]
-measures: [sum_spend, roi, cac, cvr]
+measures: [sum_spend, roi, cac, cvr, cpm, ctr]
 time_range: { start: "<90 days ago 00:00:00Z>", end: "<tomorrow 00:00:00Z>" }
 time_zone: "America/Los_Angeles"
 where: ad_name ilike '%[TICKET]%' (for VIDPET tickets: ad_name ILIKE '%VIDPET-XXX%' OR ad_name ILIKE '%VIDEPT-XXX%')
@@ -348,6 +352,8 @@ limit: 90
 ```
 
 **YouTube query:** Same but `metrics_view: youtube_dashboard` and replace `sum_spend` with `spend` in the measures list. Sort remains `[date asc]`.
+
+**Note:** `cpm` and `ctr` are included in the daily trend for the `--media-buyer` fatigue signal analysis (week-over-week CPM trends). For other roles, these measures are available but not required in the report.
 
 If the ad has been running less than 90 days, this will return the full run — that's fine.
 
@@ -391,13 +397,16 @@ Query the account-wide retention profile to establish what's NORMAL for this VSL
 
 ```
 metrics_view: fb_campaigns
-measures: [three-TP, 25-watched, 50-watched, 75-watched, 100-watched]
+measures: [three-TP, 25-watched, 50-watched, 75-watched, 100-watched, sum_spend]
 time_range: { start: "<180 days ago 00:00:00Z>", end: "<tomorrow 00:00:00Z>" }
 time_zone: "America/Los_Angeles"
 where: account_name = '<same account>'
+having: sum_spend > 500
 ```
 
-No dimensions — returns a single aggregated row for the entire account.
+**Important:** The `having: sum_spend > 500` filter ensures the baseline is computed only from ads with meaningful spend. Without this, the baseline would be polluted by hundreds of $0-$50 test ads with noisy retention data.
+
+No dimensions — returns a single aggregated row for the entire account (ads with >$500 spend).
 
 **Post-process:** Compute the account-level step-to-step ratios:
 - `baseline_TP_25` = 25-watched / three-TP
@@ -409,7 +418,9 @@ Store these for comparison in Step 5. These are the "expected" retention ratios 
 
 **Why this matters:** A 20-minute VSL will ALWAYS have a steep TP→25% cliff. On the Nature's Blend CM account, the account-level TP→25% ratio is ~8-10%. If a variant shows 9%, that's not "what's not working" — that's the structural cost of running long-form content. But if a variant shows 4%, that IS underperforming the baseline and warrants investigation.
 
-**If this query fails, skip it.** Diagnosis proceeds without baseline context — just note "Account baseline unavailable."
+**Note:** The baseline blends all ad formats (TS-only and ad body) and all VSL types on the account. TS-only ads may naturally have slightly different TP→25% ratios than ad body ads due to the connector difference. Keep this in mind when interpreting borderline cases.
+
+**If this query fails, skip it.** Diagnosis proceeds without baseline context — just note "Account baseline unavailable." When baseline is unavailable, Steps 5c, 5h, and 5i should diagnose using absolute values and the Funnel Diagnosis Patterns table only (no baseline comparison — flag drops by magnitude alone).
 
 ### Step 3.75 — Pack-vs-Pack Comparison (single-ticket mode, VIDPET only)
 
@@ -488,6 +499,8 @@ Compute step-to-step ratios for the **video_view-denominated** checkpoints only:
 
 Separately evaluate `imp-3sec` against benchmark (Green ≥ 15%, Yellow 10-15%, Red < 10%). A low imp-3sec is a TS problem regardless of what happens downstream.
 
+**Null retention handling:** If any retention metric is null for a variant with spend > $0, skip the retention waterfall for that variant and note: `"Retention data unavailable for [variant] — Rill pipeline may be delayed."` If `three-TP` is 0, skip the downstream waterfall and flag: `"Zero thruplay — no viewers are committing past the hook. This is a severe TS problem."`
+
 **5c. Identify the biggest drop AND compare against account baseline:**
 
 1. First check `imp-3sec` — if below 10%, flag as a **TS problem** before looking downstream.
@@ -525,7 +538,7 @@ Same logic — find the biggest drop, name the segment.
 **5h. Systemic pattern detection (multi-variant only):**
 
 When analyzing multiple variants of the same ticket or multiple ads in multi-ad mode:
-1. For each variant, identify the biggest-drop segment (from 5c).
+1. For each variant, identify the biggest **absolute** drop segment (the step-to-step ratio with the lowest value — this will almost always be TP→25% for long-form VSLs).
 2. If **≥ 70% of variants** show the same biggest-drop segment (e.g., all drop at TP→25%), check it against the account baseline:
    - **If the drop is at or above the account baseline:** This is a **structural norm**, not a problem. Frame it as: `"All [N] variants show the same TP→25% cliff — but this is at the account baseline ([X]%). This is what a 20-minute VSL looks like on this account. The hooks are working; the VSL's retention profile is normal. Focus on finding hooks that carry MORE viewers past this cliff (like vD's [X]% vs. the account average of [Y]%)."`
    - **If the drop is significantly below baseline (>20% worse):** This IS a systemic creative problem. Flag it as: `"⚠️ Systemic issue: [N] of [total] variants show [segment] dropout at [X]%, which is [Z]% worse than the account norm of [Y]%. This is a structural issue with the [VSL/connector/TS] — variant swaps won't fix it."`
@@ -630,7 +643,9 @@ Assign one of four verdicts **per variant**. Be decisive — the team needs a ca
 
 [Every bullet must reference a specific metric AND explain WHY it matters for the creative. No orphaned numbers.]
 
-**REQUIRED: Hook angle analysis.** For each variant with Jira TS headline data, classify the headline by angle type (see Hook Angle Types table). Explain performance differences through hook psychology — don't just say "vD has higher thruplay," say WHY: "vD's curiosity hook ('Your Dog Is Trying to Tell You Something') self-selects committed viewers — lower 3sec (38%) but higher thruplay (26%). vE's shock hook (caps-lock 'WATCH WHAT...') grabs more eyeballs (54%) but fewer commit past the TS. This is the classic quality-vs-quantity hook tradeoff — for a 20-minute VSL, you want quality."
+**Hook angle analysis (when TS headlines are available from Jira).** For each variant with Jira TS headline data, classify the headline by angle type (see Hook Angle Types table). Explain performance differences through hook psychology — don't just say "vD has higher thruplay," say WHY: "vD's curiosity hook ('Your Dog Is Trying to Tell You Something') self-selects committed viewers — lower 3sec (38%) but higher thruplay (26%). vE's shock hook (caps-lock 'WATCH WHAT...') grabs more eyeballs (54%) but fewer commit past the TS. This is the classic quality-vs-quantity hook tradeoff — for a 20-minute VSL, you want quality."
+
+**If no TS headlines are available** (STOR/ACT/VTD tickets, or Jira lookup failed), skip hook angle classification. Instead, compare variants by retention shape and note: "TS headlines not available — hook angle analysis omitted. Variants compared by retention profile only."
 
 ---
 
@@ -713,10 +728,14 @@ Always reference the actual timestamp, not just the percentage.]
 
 1. **Let vD run to $500-1K before making any calls.** 221% ROI at $159 is a strong early signal but the sample is tiny (likely 1-2 conversions). It needs 5-10x more spend to confirm.
 2. **Watch vE closely — it could overtake vD.** Higher hook rate (53.8% vs 37.9%) with decent thruplay. If it starts converting, the combo of broad hook + conversions could beat vD's efficiency at scale.
-3. **Investigate the TP→25% cliff.** This is the #1 issue across the entire pack. Pull up the VSL timeline — what happens in the first 3-5 minutes after the hook? If there's an editorial/B-roll section without Cesar, that's your likely culprit. Consider: [specific editing suggestion based on the pattern].
+3. **[If TP→25% is below baseline:] Investigate the ~5:00 mark in the VSL.** The TP→25% ratio is [X]% below the account norm — pull up the VSL timeline and check the first 3-5 minutes for a pacing lull or editorial cutaway. **[If at/above baseline:] The TP→25% cliff is structural (at account norm).** Focus on finding more hooks like vD that carry a higher % of viewers past this natural drop point.
 4. **Don't kill any variants yet.** Everything under $50 spend is noise. Let the pack run to $1K+ total before cutting.
 
 ### 📊 Budget Allocation
+
+**If the ticket status is "Done" or spend velocity is ~$0/day:** Replace Budget Allocation and Milestone Checkpoints with a **Post-Mortem Summary**: distill the pack's total performance into 2-3 key learnings for future packs (e.g., "no-MM VSL outperformed standard by 15 ROI points", "duplicate ran $73K before being caught").
+
+**If the ticket is actively spending:**
 
 Based on current performance and spend velocity ($[last-3-day avg from Step 3]/day across all variants):
 
