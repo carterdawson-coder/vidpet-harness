@@ -242,6 +242,7 @@ Read the retention curve as a **segment-by-segment dropoff map.** Each drop tell
 | **Pitch failure** | 75%→CVR | 75-watched is healthy but CVR is low (<1%) | They heard the pitch but didn't buy | Offer/price/CTA issue, not creative. VSL audit needed. |
 | **Audience problem** | CVR→NCR | Good CVR, low NCR (<45%) | Converting existing customers, not new | Audience targeting or exclusion list issue |
 | **Fatigue** | Trend over time | Good early metrics, declining ROI/CVR in daily data | Creative exhausted — audience saturated | Rotate new variants |
+| **Structural norm** | TP→25% (or any checkpoint) | Drop ratio is at the account baseline from Step 3.6 | NOT a problem — this is what a 20-min VSL looks like. The cliff is the cost of long-form content. | Don't fix the cliff. Focus on finding hooks that carry MORE viewers past it than the account average. A variant above baseline at this checkpoint is outperforming. |
 | **Scaling signal** | Nowhere — all green | All metrics green + upward daily trend | Working — needs fuel | Increase budget |
 
 **How to read the retention curve:**
@@ -384,6 +385,32 @@ This gives you the **top 10 performing ads on the same account in the last 6 mon
 
 **If this query fails or returns no data, skip it.** It's context, not core analysis.
 
+### Step 3.6 — Account-Level Retention Baseline
+
+Query the account-wide retention profile to establish what's NORMAL for this VSL type. Without this baseline, you can't tell if a retention cliff is a real problem or just what a 20-minute VSL looks like.
+
+```
+metrics_view: fb_campaigns
+measures: [three-TP, 25-watched, 50-watched, 75-watched, 100-watched]
+time_range: { start: "<180 days ago 00:00:00Z>", end: "<tomorrow 00:00:00Z>" }
+time_zone: "America/Los_Angeles"
+where: account_name = '<same account>'
+```
+
+No dimensions — returns a single aggregated row for the entire account.
+
+**Post-process:** Compute the account-level step-to-step ratios:
+- `baseline_TP_25` = 25-watched / three-TP
+- `baseline_25_50` = 50-watched / 25-watched
+- `baseline_50_75` = 75-watched / 50-watched
+- `baseline_75_100` = 100-watched / 75-watched
+
+Store these for comparison in Step 5. These are the "expected" retention ratios — any variant performing at or above these ratios is performing normally. A variant significantly below (>20% worse) has a real retention problem at that segment.
+
+**Why this matters:** A 20-minute VSL will ALWAYS have a steep TP→25% cliff. On the Nature's Blend CM account, the account-level TP→25% ratio is ~8-10%. If a variant shows 9%, that's not "what's not working" — that's the structural cost of running long-form content. But if a variant shows 4%, that IS underperforming the baseline and warrants investigation.
+
+**If this query fails, skip it.** Diagnosis proceeds without baseline context — just note "Account baseline unavailable."
+
 ### Step 3.75 — Pack-vs-Pack Comparison (single-ticket mode, VIDPET only)
 
 For VIDPET tickets, query other recent packs on the same account to provide stage-appropriate context. This answers: "Is my pack performing well FOR ITS AGE?"
@@ -461,11 +488,14 @@ Compute step-to-step ratios for the **video_view-denominated** checkpoints only:
 
 Separately evaluate `imp-3sec` against benchmark (Green ≥ 15%, Yellow 10-15%, Red < 10%). A low imp-3sec is a TS problem regardless of what happens downstream.
 
-**5c. Identify the biggest drop:**
+**5c. Identify the biggest drop AND compare against account baseline:**
 
 1. First check `imp-3sec` — if below 10%, flag as a **TS problem** before looking downstream.
-2. Then among the video_view-denominated ratios (`25/TP`, `50/25`, `75/50`, `100/75`), find the transition with the **lowest ratio** (biggest percentage loss). That's where the creative is failing.
-3. Name the specific segment using the Creative Structure table.
+2. Then among the video_view-denominated ratios (`25/TP`, `50/25`, `75/50`, `100/75`), find the transition with the **lowest ratio** (biggest percentage loss).
+3. **Compare against the account baseline from Step 3.6.** This is critical — it determines whether the drop is a real problem or the structural norm:
+   - **At or above baseline** (within 20%): The drop is **structural** — it's what a 20-minute VSL retention curve normally looks like on this account. Do NOT flag this as "what's not working." Instead, frame it as: "The TP→25% ratio of [X]% is at the account norm ([Y]%). This is the structural cost of running a 20-minute VSL — the question is whether conversion among surviving viewers justifies the dropoff." If the variant is ABOVE baseline, call it out as a strength.
+   - **Significantly below baseline** (>20% worse): This IS a real retention problem at that segment. Flag it and diagnose using the Funnel Diagnosis Patterns table. State: "The TP→25% ratio of [X]% is [Z]% worse than the account baseline of [Y]% — this variant is underperforming at [segment]."
+4. Name the specific segment using the Creative Structure table.
 
 **5d. Map to diagnosis pattern:**
 
@@ -496,16 +526,17 @@ Same logic — find the biggest drop, name the segment.
 
 When analyzing multiple variants of the same ticket or multiple ads in multi-ad mode:
 1. For each variant, identify the biggest-drop segment (from 5c).
-2. If **≥ 70% of variants** show the same biggest-drop segment (e.g., all drop at TP→25%), flag it as a **systemic issue**: `"⚠️ Systemic pattern: [N] of [total] variants show [segment] dropout — this is a structural issue with the [VSL/connector/TS], not variant-specific."`
-3. A systemic issue means variant swaps won't fix it — the underlying creative segment needs rework.
-4. If no systemic pattern exists (drops are scattered across different segments), note: "No systemic pattern — variant-specific issues."
+2. If **≥ 70% of variants** show the same biggest-drop segment (e.g., all drop at TP→25%), check it against the account baseline:
+   - **If the drop is at or above the account baseline:** This is a **structural norm**, not a problem. Frame it as: `"All [N] variants show the same TP→25% cliff — but this is at the account baseline ([X]%). This is what a 20-minute VSL looks like on this account. The hooks are working; the VSL's retention profile is normal. Focus on finding hooks that carry MORE viewers past this cliff (like vD's [X]% vs. the account average of [Y]%)."`
+   - **If the drop is significantly below baseline (>20% worse):** This IS a systemic creative problem. Flag it as: `"⚠️ Systemic issue: [N] of [total] variants show [segment] dropout at [X]%, which is [Z]% worse than the account norm of [Y]%. This is a structural issue with the [VSL/connector/TS] — variant swaps won't fix it."`
+3. If no systemic pattern exists (drops are scattered across different segments), note: "No systemic pattern — variant-specific issues."
 
 **5i. Generate asset request list (REQUIRED when triggered):**
 
 Check these conditions. If ANY fire, you MUST include a "🔍 To Go Deeper" section in the report:
 
 1. **Hook anomaly** — A variant has low 3sec (<40%) but leads in conversion OR high 3sec (>50%) but zero conversions → request **first-frame screenshot** of the anomalous variant(s). Ask: "Is the thumbnail intentionally filtering? What's the opening visual?"
-2. **Unexplained retention cliff** — The biggest drop can't be mapped to a known creative moment (e.g., it's not at a known editorial break) → ask **what happens at that VSL timestamp**. Be specific: "What's happening at ~5:00 in the VSL? That's where [X]% of remaining viewers leave."
+2. **Unexplained retention cliff below baseline** — The biggest drop is >20% worse than the account baseline AND can't be mapped to a known creative moment → ask **what happens at that VSL timestamp**. Be specific: "What's happening at ~5:00 in the VSL? That's where [X]% of remaining viewers leave — and that's [Z]% worse than the account norm." Do NOT fire this condition if the drop is at the account baseline — structural drops don't need investigation.
 3. **Variant divergence** — Two variants with similar hook rates (within 5%) have >2x difference in thruplay or CVR → request **creative assets for both** to compare. Ask: "These hooks perform similarly but the downstream numbers diverge — what's different about the visuals or first 10 seconds?"
 
 If NONE of these conditions fire, omit the section entirely.
@@ -606,8 +637,16 @@ Assign one of four verdicts **per variant**. Be decisive — the team needs a ca
 ## ❌ What's Not Working
 
 [2-4 bullet points. Be specific about WHERE the problem is and WHAT creative segment causes it.]
-- "**Massive TP→25% cliff across all variants.** vD drops from 25.9% thruplay to 4.3% at the 25% mark. vE is worse: 24% → 1.7%. This is the VSL handoff — viewers commit past the hook but bail in the first few minutes of the long-form content. This is a systemic VSL issue, not variant-specific."
-- "**6 of 7 variants have zero conversions.** Only vD has converted. The pack is too early to judge most variants — but the universal TP→25% cliff suggests even scaled spend won't fix the downstream."
+
+**CRITICAL: Check retention drops against the account baseline (Step 3.6) before listing them here.** A TP→25% cliff that's at the account norm is NOT "what's not working" — it's the structural cost of running a 20-minute VSL. Only list retention drops here if they are >20% worse than the account baseline. If the biggest retention cliff is at baseline, do NOT include it in this section — instead, note it briefly in the Retention Deep Dive as "structural, at account norm" and focus this section on actual underperformance (poor ROI, low CVR, audience issues, duplicates, etc.).
+
+Examples of real problems (belong here):
+- "**5 of 7 variants have zero conversions.** At $400 total this is expected, but budget needs to shift toward the converters."
+- "**vD Copy is splitting budget from the real vD.** Duplicate — pause immediately."
+- "**vE's ROI is underwater at 37%.** The shock hook grabs eyeballs (54%) but isn't converting efficiently — 1 customer on $123."
+
+Examples of structural norms (do NOT put here):
+- ❌ "Massive TP→25% cliff across all variants" — if this is at the account baseline, it's the VSL's natural retention shape, not a problem to fix.
 
 [Name the creative segment. Name the pattern from the diagnosis table. Don't just say "retention is low" — say WHERE it breaks and what that means for the edit.]
 
@@ -620,18 +659,20 @@ Assign one of four verdicts **per variant**. Be decisive — the team needs a ca
 
 **Lead variant ([vX] — "[TS headline]"):**
 
-| Checkpoint | Rate | ~Timestamp | Segment | Drop | |
+| Checkpoint | Rate | ~Timestamp | Segment | Drop | vs. Account Baseline |
 |---|---|---|---|---|---|
 | imp→3sec | [X]% | 0-3s | Thumbstopper | — | [🟢/🟡/🔴] |
 | three-TP | [X]% | 3-15s | Connector/VSL entry | — | |
-| TP→25% | [X]% | ~[computed] | Early VSL (problem-agitation) | **-[X]%** | ⚠️ biggest cliff |
-| 25→50% | [X]% | ~[computed] | Mid VSL (case-building) | -[X]% | |
-| 50→75% | [X]% | ~[computed] | Product reveal zone | -[X]% | |
-| 75→100% | [X]% | ~[computed] | VSL close/CTA | -[X]% | |
+| TP→25% | [X]% | ~[computed] | Early VSL (problem-agitation) | -[X]% | [above/at/below] baseline ([Y]%) |
+| 25→50% | [X]% | ~[computed] | Mid VSL (case-building) | -[X]% | [above/at/below] baseline ([Y]%) |
+| 50→75% | [X]% | ~[computed] | Product reveal zone | -[X]% | [above/at/below] baseline ([Y]%) |
+| 75→100% | [X]% | ~[computed] | VSL close/CTA | -[X]% | [above/at/below] baseline ([Y]%) |
 
 [Compute timestamps: percentage × vsl_duration_minutes. For 20-min VSL: 25%=5:00, 50%=10:00, 75%=15:00, 100%=20:00]
+[Baseline values from Step 3.6. If baseline unavailable, omit the column.]
 
-[If systemic pattern: "⚠️ Systemic: [N/total] variants show the same cliff at [segment]. This is a structural issue with the [VSL/connector], not the thumb stoppers."]
+[If systemic pattern AT baseline: "All [N] variants show the same cliff at [segment] — but this is at the account norm. The retention profile is structural for this VSL type. The real metric is which hooks carry MORE viewers past this cliff vs. the account average."]
+[If systemic pattern BELOW baseline: "⚠️ Systemic issue: [N/total] variants show [segment] dropout [Z]% worse than the account norm — this is a real creative problem, not just the VSL's natural shape."]
 
 **YouTube variant (if YouTube data exists):** Use the same table structure but substitute YouTube measure names:
 - `view_rate` instead of `imp→3sec` (standalone hook rate)
@@ -639,10 +680,14 @@ Assign one of four verdicts **per variant**. Be decisive — the team needs a ca
 - No `three-TP` equivalent — start step-to-step ratios from `watched_25_rate`
 - Present as a separate table under "**YouTube Retention:**" — never blend FB and YT in the same table.
 
-**⏱️ Editor question:** "What's happening in the VSL at ~[timestamp of biggest cliff]? That's where [X]% of remaining viewers leave across [all/most] variants. [If Nature's Blend CM account: Check if there's an editorial B-roll section here where Cesar stops talking — that's the most common cause of retention drops in this account.]"
+**⏱️ Editor question:** Only include if the biggest cliff is >20% below the account baseline. If at baseline, replace with: "The retention cliff at ~[timestamp] is at the account norm — this is what 20 minutes of long-form content looks like. No editorial investigation needed at this checkpoint." If below baseline: "What's happening in the VSL at ~[timestamp]? The drop here is [Z]% worse than the account average — something specific in this segment is losing viewers beyond the normal rate."
 
 **What the curve tells you:**
-[2-3 sentences connecting the retention shape to specific creative moments at specific timestamps. Don't say "25% watched drops" — say "At the ~5:00 mark (the problem-agitation section), viewers are leaving. This is typically where the VSL transitions from hook to story — if there's a pacing lull or editorial cutaway here, that's your fix." Always reference the actual timestamp, not just the percentage.]
+[2-3 sentences. ALWAYS compare against the account baseline. Frame the retention shape as either:
+- **Structural + healthy:** "The TP→25% cliff of [X]% is at the account baseline ([Y]%). This is the natural shape of a 20-minute VSL — most viewers leave early. The key insight is that vD's ratio ([Z]%) is [above/below] this baseline, meaning its [hook angle] is [better/worse] at carrying viewers into the VSL than the account average."
+- **Structural + outperforming:** "vD's TP→25% ratio of [X]% is [Z]% above the account baseline — the [recipe/curiosity/etc.] hook is pulling more committed viewers into the VSL than typical. This is the real win."
+- **Below baseline = real problem:** "The TP→25% ratio of [X]% is [Z]% below the account baseline of [Y]% — something in the first 5 minutes is losing viewers beyond the normal rate. Check for [editorial break / pacing lull / cadence break]."
+Always reference the actual timestamp, not just the percentage.]
 
 ---
 
