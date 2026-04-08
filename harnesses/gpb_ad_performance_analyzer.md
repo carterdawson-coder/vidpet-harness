@@ -162,6 +162,23 @@ Use same ROI/CAC targets as Nature's Blend until brand-specific benchmarks are e
 
 Do **not** score against hard benchmarks yet. Report trajectory only — show the numbers and trend direction without Green/Yellow/Red flags.
 
+### Hook Angle Types
+
+When analyzing TS headlines, classify each by its dominant angle. This explains WHY different hooks perform differently — not just that they do.
+
+| Angle | Pattern | Hook Behavior | Commitment Behavior | Example |
+|---|---|---|---|---|
+| **Curiosity/Emotional** | Question or emotional trigger, no specifics revealed | Lower 3sec (35-45%) — filters casual scrollers | Higher thruplay — self-selects committed viewers | "Your Dog Is Trying to Tell You Something" |
+| **Shock/Urgency** | ALL CAPS, exclamation, "WATCH THIS" energy | Higher 3sec (50%+) — grabs eyeballs | Lower thruplay — attracts attention but not commitment | "WATCH WHAT Just a FEW DROPS CAN DO!" |
+| **Authority** | Celebrity/expert name + directive | Mid-range 3sec (40-50%) — name recognition pulls | Mid thruplay — Cesar's credibility carries | "Cesar Millan Says, Do This" |
+| **Fear/Loss** | Warning, "watch out", loss aversion | Mid-high 3sec (45-55%) — anxiety trigger | Variable thruplay — depends if fear converts to curiosity or bounces | "Watch Out! Cesar Millan Wants You to Hear This" |
+| **UGC/Social Proof** | User-generated content feel, testimonial | Variable — different visual language | Variable — authenticity can hook or confuse | "UGC Intro" |
+| **Listicle/Recipe** | Promise of specific info or method | Mid 3sec (40-50%) — info-seekers click | Higher thruplay — they came for the recipe, they'll watch | "Cesar Millan's Recipe for Dog Longevity" |
+
+**Key insight:** A low-hook + high-conversion variant isn't broken — it's **filtering for buyers.** Curiosity hooks self-select committed viewers who watch longer and convert more. Shock hooks grab more eyeballs but attract casual scrollers who bounce. Always interpret hook rate TOGETHER with thruplay and conversion, not in isolation.
+
+**Hybrid angles:** Some headlines combine angles (e.g., "Watch Out! Cesar Millan Wants You to Hear This" is Fear + Authority). Classify by the DOMINANT angle but note the secondary.
+
 ### Creative Structure — How Ads Work
 
 Every ad in this system is a **full-length VSL** (15–30 minutes) uploaded directly to Facebook/YouTube. Rill's retention metrics measure viewers watching through the actual VSL, not a short clip. The structure:
@@ -190,6 +207,8 @@ Every ad in this system is a **full-length VSL** (15–30 minutes) uploaded dire
 | `100-watched` | ~20 min mark | **VSL close / CTA** | Full VSL completion — strongest buy signal |
 
 **Key insight:** The product is NOT mentioned until ~15+ minutes in (~75% mark). Any viewer who reaches 75-watched has heard the pitch. If they don't convert after that, it's a pitch/offer/price issue — not a creative issue.
+
+**Computing actual timestamps:** `actual_timestamp = retention_percentage × vsl_duration`. Default VSL duration = 20 minutes unless known otherwise. For a 20-min VSL: 25% = ~5:00, 50% = ~10:00, 75% = ~15:00, 100% = ~20:00. **Always show BOTH the percentage AND the computed timestamp in the report** — editors think in timestamps, not percentages.
 
 ### Funnel Diagnosis Patterns
 
@@ -241,6 +260,8 @@ For VIDPET tickets, use `getJiraIssue` (Jira MCP) to pull the ticket and extract
 3. **Team** — producer, editor, assignee from the Jira fields.
 4. **Ticket status** — Testing, Editing, Done, etc.
 5. **Delivery specs** — 4x5, 16x9, etc.
+
+6. **VSL duration** — estimate from ticket context (description, VSL name) or default to 20 minutes for standard Cesar Solo VSLs. Store as `vsl_duration_minutes` for timestamp computation in the retention waterfall. Other known durations: Fast/Super Cesar VSL = ~12 minutes, Meghan Cut VSL = ~15 minutes.
 
 For STOR/ACT/VTD tickets, Rill already has producer/editor/ticket_status — skip the Jira lookup unless you need TS headlines (which older tickets may not have in Jira).
 
@@ -339,6 +360,32 @@ This gives you the **top 10 performing ads on the same account in the last 6 mon
 
 **If this query fails or returns no data, skip it.** It's context, not core analysis.
 
+### Step 3.75 — Pack-vs-Pack Comparison (single-ticket mode, VIDPET only)
+
+For VIDPET tickets, query other recent packs on the same account to provide stage-appropriate context. This answers: "Is my pack performing well FOR ITS AGE?"
+
+```
+metrics_view: fb_campaigns
+dimensions: [ad_name]
+measures: [sum_spend, roi, cac, cvr]
+time_range: { start: "<90 days ago 00:00:00Z>", end: "<tomorrow 00:00:00Z>" }
+time_zone: "America/Los_Angeles"
+where: ad_name ILIKE '%VIDPET-%' AND account_name = '<same account>' AND sum_spend > 50
+sort: [sum_spend desc]
+limit: 100
+```
+
+**Post-process:**
+1. Extract ticket number from each ad_name (e.g., "VIDPET-450" from the full name). Group all ad_name rows by ticket number.
+2. For each ticket, compute: `total_spend` (sum across variants), `lead_variant_roi` (ROI of highest-spend variant), `variant_count`.
+3. Exclude the current ticket from the comparison set.
+4. Filter to packs at a comparable spend stage — within 2x of the current pack's total spend. This prevents comparing a $400 pack against a $50K pack.
+5. If fewer than 2 comparable packs found, broaden to all VIDPET packs on the account and note the spend difference.
+
+**Use in report:** Include in the "How This Compares" section. Frame the current pack's performance relative to other packs at the same stage.
+
+**If query fails or returns no other VIDPET packs, skip gracefully:** "First VIDPET pack on this account in the last 90 days — no direct comparison available."
+
 ### Step 4 — Score Against Benchmarks
 
 For each variant (each `ad_name` row from Step 2):
@@ -425,6 +472,16 @@ When analyzing multiple variants of the same ticket or multiple ads in multi-ad 
 2. If **≥ 70% of variants** show the same biggest-drop segment (e.g., all drop at TP→25%), flag it as a **systemic issue**: `"⚠️ Systemic pattern: [N] of [total] variants show [segment] dropout — this is a structural issue with the [VSL/connector/TS], not variant-specific."`
 3. A systemic issue means variant swaps won't fix it — the underlying creative segment needs rework.
 4. If no systemic pattern exists (drops are scattered across different segments), note: "No systemic pattern — variant-specific issues."
+
+**5i. Generate asset request list (REQUIRED when triggered):**
+
+Check these conditions. If ANY fire, you MUST include a "🔍 To Go Deeper" section in the report:
+
+1. **Hook anomaly** — A variant has low 3sec (<40%) but leads in conversion OR high 3sec (>50%) but zero conversions → request **first-frame screenshot** of the anomalous variant(s). Ask: "Is the thumbnail intentionally filtering? What's the opening visual?"
+2. **Unexplained retention cliff** — The biggest drop can't be mapped to a known creative moment (e.g., it's not at a known editorial break) → ask **what happens at that VSL timestamp**. Be specific: "What's happening at ~5:00 in the VSL? That's where [X]% of remaining viewers leave."
+3. **Variant divergence** — Two variants with similar hook rates (within 5%) have >2x difference in thruplay or CVR → request **creative assets for both** to compare. Ask: "These hooks perform similarly but the downstream numbers diverge — what's different about the visuals or first 10 seconds?"
+
+If NONE of these conditions fire, omit the section entirely.
 
 Output 2–3 sentences explaining:
 1. What the retention curve shape tells you (where the biggest drop is)
@@ -515,6 +572,8 @@ Assign one of four verdicts **per variant**. Be decisive — the team needs a ca
 
 [Every bullet must reference a specific metric AND explain WHY it matters for the creative. No orphaned numbers.]
 
+**REQUIRED: Hook angle analysis.** For each variant with Jira TS headline data, classify the headline by angle type (see Hook Angle Types table). Explain performance differences through hook psychology — don't just say "vD has higher thruplay," say WHY: "vD's curiosity hook ('Your Dog Is Trying to Tell You Something') self-selects committed viewers — lower 3sec (38%) but higher thruplay (26%). vE's shock hook (caps-lock 'WATCH WHAT...') grabs more eyeballs (54%) but fewer commit past the TS. This is the classic quality-vs-quantity hook tradeoff — for a 20-minute VSL, you want quality."
+
 ---
 
 ## ❌ What's Not Working
@@ -534,29 +593,39 @@ Assign one of four verdicts **per variant**. Be decisive — the team needs a ca
 
 **Lead variant ([vX] — "[TS headline]"):**
 
-| Checkpoint | Rate | Segment | Drop | |
-|---|---|---|---|---|
-| imp→3sec | [X]% | Thumbstopper | — | [🟢/🟡/🔴 or "standalone"] |
-| three-TP | [X]% | Connector/VSL entry | — | |
-| TP→25% | [X]% | Early VSL | **[X]% drop** | ⚠️ biggest cliff |
-| 25→50% | [X]% | Mid VSL | [X]% drop | |
-| 50→75% | [X]% | Product reveal | [X]% drop | |
-| 75→100% | [X]% | VSL close | [X]% drop | |
+| Checkpoint | Rate | ~Timestamp | Segment | Drop | |
+|---|---|---|---|---|---|
+| imp→3sec | [X]% | 0-3s | Thumbstopper | — | [🟢/🟡/🔴] |
+| three-TP | [X]% | 3-15s | Connector/VSL entry | — | |
+| TP→25% | [X]% | ~[computed] | Early VSL (problem-agitation) | **-[X]%** | ⚠️ biggest cliff |
+| 25→50% | [X]% | ~[computed] | Mid VSL (case-building) | -[X]% | |
+| 50→75% | [X]% | ~[computed] | Product reveal zone | -[X]% | |
+| 75→100% | [X]% | ~[computed] | VSL close/CTA | -[X]% | |
+
+[Compute timestamps: percentage × vsl_duration_minutes. For 20-min VSL: 25%=5:00, 50%=10:00, 75%=15:00, 100%=20:00]
 
 [If systemic pattern: "⚠️ Systemic: [N/total] variants show the same cliff at [segment]. This is a structural issue with the [VSL/connector], not the thumb stoppers."]
 
+**⏱️ Editor question:** "What's happening in the VSL at ~[timestamp of biggest cliff]? That's where [X]% of remaining viewers leave across [all/most] variants. [If Nature's Blend CM account: Check if there's an editorial B-roll section here where Cesar stops talking — that's the most common cause of retention drops in this account.]"
+
 **What the curve tells you:**
-[2-3 sentences connecting the retention shape to specific creative moments. Example:]
-"Viewers are hooked by the TS and commit through the connector — but they're bailing in the first 5 minutes of the VSL. At the ~5 min mark on a 20-minute VSL, that's typically the problem-agitation section. If there's an editorial segment here (B-roll without Cesar talking), that's likely where they leave. The fix is keeping Cesar on screen through this section."
+[2-3 sentences connecting the retention shape to specific creative moments at specific timestamps. Don't say "25% watched drops" — say "At the ~5:00 mark (the problem-agitation section), viewers are leaving. This is typically where the VSL transitions from hook to story — if there's a pacing lull or editorial cutaway here, that's your fix." Always reference the actual timestamp, not just the percentage.]
 
 ---
 
 ## 📊 How This Compares
 
-[Use data from Step 3.5 comparative benchmark query:]
-- "**Account context:** The top 10 CM account ads in the last 6 months average [X]% ROI and $[X] CAC. vD's 221% ROI would rank [#X] if it holds at scale."
-- "**Retention context:** The best-performing ads on this account have TP→25% ratios of [X-Y]%. This pack's [X]% is [above/below/in line with] that range."
-- "**Pack-stage context:** At $369 total spend, this pack is in early testing. Typical packs don't stabilize until $2K-5K total spend."
+**Account benchmarks** (from Step 3.5 — top 10 ads on same account, last 6 months):
+- "The top performers on this account average [X]% ROI and $[X] CAC. vD's [X]% ROI would rank [#X] if it holds at scale."
+- "Best-performing ads have TP→25% ratios of [X-Y]%. This pack's [X]% is [above/below/in line]."
+
+**Pack-vs-Pack** (from Step 3.75 — other VIDPET packs at similar spend stage):
+- "VIDPET-[XXX] at ~$[similar] spend: lead variant had [X]% ROI — yours is tracking [above/below/similarly]"
+- "VIDPET-[YYY] at ~$[similar] spend: [X]% ROI on lead variant"
+- "Account average for packs under $[threshold] total: ~[X]% ROI — vD's [X]% is [well above / in line / below]"
+
+[If no comparable packs: "First VIDPET pack on this account in the last 90 days — no direct comparison available."]
+[If Step 3.5 or 3.75 queries failed: skip that sub-section gracefully, don't leave blanks]
 
 [If benchmark query failed or returned no data, skip this section.]
 
@@ -571,8 +640,41 @@ Assign one of four verdicts **per variant**. Be decisive — the team needs a ca
 3. **Investigate the TP→25% cliff.** This is the #1 issue across the entire pack. Pull up the VSL timeline — what happens in the first 3-5 minutes after the hook? If there's an editorial/B-roll section without Cesar, that's your likely culprit. Consider: [specific editing suggestion based on the pattern].
 4. **Don't kill any variants yet.** Everything under $50 spend is noise. Let the pack run to $1K+ total before cutting.
 
-[If the analysis can't fully explain a pattern, ASK for more context:]
-"**To go deeper:** Can you share a screenshot of vD's first frame? The low 3sec rate + high thruplay is unusual — I want to see if the visual is intentionally filtering (bold text hook) or if the thumbnail just isn't compelling and the viewers who DO click are self-selected committed."
+### 📊 Budget Allocation
+
+Based on current performance and spend velocity ($[last-3-day avg from Step 3]/day across all variants):
+
+| Variant | Allocation | Daily Target | Rationale |
+|---|---|---|---|
+| [best performer] | 50-60% | ~$[computed]/day | Clear winner — needs scale confirmation |
+| [strong signal] | 20-25% | ~$[computed]/day | Strong hook or retention, watching for conversions |
+| [promising] | 10-15% | ~$[computed]/day | Best [metric], needs spend to test |
+| [early/low spend] | Min (~$5/day each) | ~$5/day | Too early to cut |
+| [duplicates/dead] | PAUSE | $0 | [reason — duplicate, splitting budget, etc.] |
+
+[Compute: variant_daily = allocation_pct × total_daily_budget. Total daily budget = last-3-day average spend velocity from Step 3.]
+
+### 📍 Milestone Checkpoints
+
+| Milestone | Est. Date | What to Watch | Decision Trigger |
+|---|---|---|---|
+| **$500 total** | ~[computed] | Does lead variant maintain ROI? Any other converters? | If yes → confirm SCALE on lead |
+| **$1,000 total** | ~[computed] | Secondary variant conversion data, 3sec→TP stability | If 2+ variants converting → healthy pack |
+| **$2,000 total** | ~[computed] | Enough data for confident scoring. **Re-run full analysis.** | Graduate from "early testing" caveats |
+| **$5,000 total** | ~[computed] | First reliable NCR/continuity read | If pack ROI holds → graduate from Testing status |
+
+[Compute est. dates: `days_to_milestone = (threshold - current_total_spend) / daily_avg_spend`. Add to today's date. If current spend already exceeds a milestone, mark it "✅ passed" and note what the data showed at that point.]
+
+### 🔍 To Go Deeper (share these if available)
+
+[REQUIRED if Step 5i triggered ANY condition. Otherwise omit this section.]
+
+[Numbered list. Each item names the specific variant, the specific asset needed, and why:]
+1. **[Variant]'s first frame** — [Observation that can't be explained by data alone]. "[Specific question]"
+2. **VSL at ~[timestamp]** — [What the data shows at this point]. "[Question about what's happening in the edit at this moment]"
+3. **[Variant A] vs [Variant B] creative comparison** — [Data shows divergence]. "[What to look for in the assets]"
+
+[This section turns the analysis into a conversation. The goal is to get the producer/editor to share assets so the NEXT analysis run can go deeper.]
 
 ---
 
