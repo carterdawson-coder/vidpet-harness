@@ -2,9 +2,21 @@
 
 This project contains harnesses for the Golden Hippo video production team: Jira ticket management, creative performance alerts, and ad performance analysis.
 
+## Team Setup
+
+Paste this into your terminal to install all harnesses:
+
+```
+curl -sL https://raw.githubusercontent.com/carterdawson-coder/vidpet-harness/main/install.sh | bash
+```
+
+Then open Claude Code and try: `Analyze VIDPET-458`
+
+To update harnesses later, run the same command again.
+
 ## Requirements
 
-You need the **Atlassian MCP server** and **Rill MCP server** connected to your Claude Code.
+You need the **Atlassian MCP server**, **Rill MCP server**, and **Slack MCP server** connected to your Claude Code.
 
 ## Command Routing — READ THIS FIRST
 
@@ -29,6 +41,13 @@ When the user says **"Create a new VIDPET ticket"** or **"Update VIDPET-XXX"**, 
 - **"Run creative performance check --test"** — Test mode (personal). Lower thresholds ($500/$1.5K/$3K/$5K/$10K/$25K/$50K), NO Slack messages, NO state updates.
 - **"Run creative performance check --test --all"** — Test mode (team-wide). Lower thresholds, no Slack, checks all opted-in users.
 - **"Run creative performance digest"** — Follow `harnesses/creative_performance_alerts.md` Weekly Digest section. Sends personalized summary DMs to each opted-in roster member with top performers, milestone hits, on-the-radar ads, and week totals. Automatically runs Fridays at 2:30 PM PST.
+
+### Thumb Stopper Intelligence (Rill)
+- **"Run TS analysis"** — Follow `harnesses/ts_intelligence.md` EXACTLY. Cross-offer TS performance ranking with hook angle classification, creative psychology insights, and per-offer creative briefs. Default: all offers, last 90 days. VIDPET tickets only.
+- **"Run TS analysis for [offer]"** — Single-offer mode.
+- **"Run TS analysis last [N] days"** — Custom time range.
+- **"Run TS analysis --all-time"** — All available data.
+- **"Run TS analysis --slack"** — Send report to Slack DM.
 
 ### Ad Performance Analyzer (Rill)
 - **"Analyze [TICKET]"** — Follow `harnesses/gpb_ad_performance_analyzer.md` EXACTLY. Queries **Rill** (NOT Jira) for ad performance data, scores against GPB benchmarks, diagnoses funnel shape, and delivers a SCALE/OPTIMIZE/PAUSE/KILL verdict. Default: producer report.
