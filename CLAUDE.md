@@ -4,15 +4,17 @@ This project contains harnesses for the Golden Hippo video production team: Jira
 
 ## Team Setup
 
-Paste this into your terminal to install all harnesses:
+Paste one of these into your terminal to install a harness:
 
 ```
-curl -sL https://raw.githubusercontent.com/carterdawson-coder/vidpet-harness/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/carterdawson-coder/vidpet-harness/main/install.sh | bash -s analyzer
+curl -sL https://raw.githubusercontent.com/carterdawson-coder/vidpet-harness/main/install.sh | bash -s alerts
+curl -sL https://raw.githubusercontent.com/carterdawson-coder/vidpet-harness/main/install.sh | bash -s tickets
+curl -sL https://raw.githubusercontent.com/carterdawson-coder/vidpet-harness/main/install.sh | bash -s ts
+curl -sL https://raw.githubusercontent.com/carterdawson-coder/vidpet-harness/main/install.sh | bash -s all
 ```
 
-Then open Claude Code and try: `Analyze VIDPET-458`
-
-To update harnesses later, run the same command again.
+Then open Claude Code and try the command (e.g., `Analyze VIDPET-458`). To update, run the same command again.
 
 ## Requirements
 
